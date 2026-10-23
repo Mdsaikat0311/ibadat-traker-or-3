@@ -269,17 +269,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               <div
                 key={dateNum}
                 onClick={() => !isFutureDate && onSelectDate(cellDateKey)}
-                className={`${cellClasses.join(' ')} ${isFutureDate ? 'cursor-not-allowed' : 'cursor-pointer'} flex flex-col justify-between p-1`}
+                className={`${cellClasses.join(' ')} ${isFutureDate ? 'cursor-not-allowed' : 'cursor-pointer'} flex flex-col justify-between items-center py-1 px-0.5`}
                 style={inlineStyle}
               >
-                {/* Top Row: Date Number (left) & Rank Badge (right) */}
-                <div className="flex items-center justify-between w-full leading-none">
-                  <span className="date-number text-xs font-bold pl-0.5" style={{ color: 'inherit' }}>
-                    {dateNum}
-                  </span>
-                  {dayRank !== null && (
+                {/* Line 1: Rank (Top, small badge) */}
+                <div className="flex items-center justify-center w-full min-h-[14px] leading-none">
+                  {dayRank !== null ? (
                     <span
-                      className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[8.5px] font-black leading-none shadow-xs shrink-0 ${
+                      className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[7.5px] font-black leading-tight shadow-2xs shrink-0 ${
                         dayRank === 1
                           ? 'bg-amber-500 text-white ring-1 ring-amber-600/60'
                           : dayRank === 2
@@ -291,25 +288,42 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                       title={`র‍্যাঙ্ক: #${dayRank}`}
                     >
                       {dayRank === 1 ? (
-                        <Crown className="w-2.5 h-2.5 fill-white text-white shrink-0" />
+                        <Crown className="w-2 h-2 fill-white text-white shrink-0" />
                       ) : dayRank <= 3 ? (
-                        <Medal className="w-2.5 h-2.5 fill-white text-white shrink-0" />
+                        <Medal className="w-2 h-2 fill-white text-white shrink-0" />
                       ) : (
                         <Trophy className="w-2 h-2 text-teal-200 shrink-0" />
                       )}
                       <span>#{dayRank}</span>
                     </span>
+                  ) : (
+                    <span className="h-3" />
                   )}
                 </div>
 
-                {/* Bottom Row: Points if > 0 */}
-                {points > 0 ? (
-                  <div className="date-points text-center text-[10.5px] font-black leading-none pb-0.5" style={{ color: 'inherit' }}>
-                    +{points}
-                  </div>
-                ) : (
-                  <div className="h-1.5" />
-                )}
+                {/* Line 2: Date Number (Middle) */}
+                <div className="flex items-center justify-center my-auto leading-none">
+                  <span className="date-number text-xs font-bold leading-none" style={{ color: 'inherit' }}>
+                    {dateNum}
+                  </span>
+                </div>
+
+                {/* Line 3: Points (Bottom, clear and legible) */}
+                <div className="flex items-center justify-center w-full min-h-[14px] leading-none">
+                  {points > 0 ? (
+                    <span
+                      className="date-points inline-block text-center text-[10px] font-black leading-none px-1.5 py-0.5 rounded shadow-2xs"
+                      style={{
+                        color: 'inherit',
+                        backgroundColor: 'rgba(0, 0, 0, 0.12)'
+                      }}
+                    >
+                      +{points}
+                    </span>
+                  ) : (
+                    <span className="h-3" />
+                  )}
+                </div>
               </div>
             );
           })}

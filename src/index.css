@@ -116,10 +116,12 @@ body {
 /* Heatmap Calendar cell */
 .date-cell {
   position: relative;
-  height: 52px;
+  min-height: 56px;
+  height: 58px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.875rem;
   border: 1px solid #f1f5f9;
 }

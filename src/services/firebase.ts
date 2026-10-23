@@ -97,17 +97,33 @@ export async function getTopUsersByMetric(
       let score = 0;
 
       if (metricType === 'todayPoints') {
-        score = getPointsForDate(history, today);
+        score = Math.max(getPointsForDate(history, today), Number(stats.todayPoints) || 0);
       } else if (metricType === 'yesterdayPoints') {
-        score = getPointsForDate(history, yesterday);
+        score = Math.max(getPointsForDate(history, yesterday), Number(stats.yesterdayPoints) || 0);
       } else if (metricType === 'totalPoints7Days') {
-        score = getPointsForPastDays(history, 7);
+        let sum7 = 0;
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          sum7 += getPointsForDate(history, d);
+        }
+        score = Math.max(sum7, Number(stats.totalPoints7Days) || 0);
       } else if (metricType === 'totalPoints30Days') {
-        score = getPointsForPastDays(history, 30);
+        let sum30 = 0;
+        for (let i = 0; i < 30; i++) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          sum30 += getPointsForDate(history, d);
+        }
+        score = Math.max(sum30, Number(stats.totalPoints30Days) || 0);
       } else if (metricType === 'totalPoints') {
-        score = getTotalHistoryPoints(history);
+        score = Math.max(
+          getTotalHistoryPoints(history),
+          Number(stats.totalLifetimePoints) || 0,
+          Number(stats.totalPoints) || 0
+        );
       } else if (metricType === 'highScore30Days') {
-        score = stats.highScore30Days || 0;
+        score = Number(stats.highScore30Days) || 0;
       }
 
       processedUsers.push({
@@ -123,13 +139,19 @@ export async function getTopUsersByMetric(
     const finalLimit = limit === 0 ? processedUsers.length : limit;
     const sliced = processedUsers.slice(0, finalLimit);
 
-    return sliced.map((u, idx) => ({
-      id: u.id,
-      name: u.name,
-      points: u.points,
-      rank: idx + 1,
-      isCurrentUser: currentUid === u.id
-    }));
+    let currentRank = 1;
+    return sliced.map((u, idx) => {
+      if (idx > 0 && u.points < sliced[idx - 1].points) {
+        currentRank = idx + 1;
+      }
+      return {
+        id: u.id,
+        name: u.name,
+        points: u.points,
+        rank: currentRank,
+        isCurrentUser: currentUid === u.id
+      };
+    });
   } catch (error) {
     console.warn("Error calculating leaderboard from Firebase:", error);
     return [];

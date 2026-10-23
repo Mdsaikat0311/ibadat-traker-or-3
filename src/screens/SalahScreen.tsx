@@ -13,6 +13,7 @@ import { IbadatRepository } from '../data/repository';
 import { AppStats, ChampionInfo, TaskStats, ReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { TaskStatsRow } from '../components/TaskStatsRow';
+import { CornerCrownBadge } from '../components/CornerCrownBadge';
 
 interface SalahScreenProps {
   appStats: AppStats;
@@ -116,8 +117,9 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
           return (
             <div
               key={prayer.key}
-              className={`flex flex-col p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
+              className={`relative flex flex-col p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
             >
+              <CornerCrownBadge rank={stats.lifetimeRank} count={stats.lifetime} />
               <div className="flex items-center justify-between w-full">
                 <div className="flex-grow">
                   <h3 className="text-base font-bold text-gray-800 flex items-center flex-wrap">
@@ -176,133 +178,145 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
               </div>
 
               {/* Subtask: Du'a & Zikir (+5p) for Fard */}
-              {prayer.hasDua && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-grow">
-                      <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
-                        <Sparkles className="w-3 h-3 mr-2 text-teal-500" />
-                        <span>দু’আ ও যিকির</span>
-                        <span className="text-xs font-bold ml-1 text-teal-600">
-                          (+5p)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenDetails(
-                              `${prayer.name} সালাত পরবর্তী দু’আ ও যিকির`,
-                              "প্রতিটি ফরয সালাতের পর রাসুল (সা.) কিছু নির্দিষ্ট দু'আ ও যিকির পাঠ করতেন। যেমন: আয়াতুল কুরসি ১ বার, সুবহানাল্লাহ ৩৩ বার, আলহামদুলিল্লাহ ৩৩ বার, আল্লাহু আকবার ৩৪ বার। এটি জান্নাতে যাওয়ার পথ সহজ করে।"
-                            )
-                          }
-                          className="cursor-pointer text-gray-400 hover:text-blue-500"
-                          title="বিস্তারিত দেখুন"
-                        >
-                          <BookOpen className="w-4 h-4 ml-2" />
-                        </button>
+              {prayer.hasDua && (() => {
+                const duaStats = getTaskStats('salah', `${prayer.key}_dua`);
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-100 relative">
+                    <CornerCrownBadge rank={duaStats.lifetimeRank} count={duaStats.lifetime} compact />
+                    <div className="flex items-center justify-between">
+                      <div className="flex-grow">
+                        <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
+                          <Sparkles className="w-3 h-3 mr-2 text-teal-500" />
+                          <span>দু’আ ও যিকির</span>
+                          <span className="text-xs font-bold ml-1 text-teal-600">
+                            (+5p)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenDetails(
+                                `${prayer.name} সালাত পরবর্তী দু’আ ও যিকির`,
+                                "প্রতিটি ফরয সালাতের পর রাসুল (সা.) কিছু নির্দিষ্ট দু'আ ও যিকির পাঠ করতেন। যেমন: আয়াতুল কুরসি ১ বার, সুবহানাল্লাহ ৩৩ বার, আলহামদুলিল্লাহ ৩৩ বার, আল্লাহু আকবার ৩৪ বার। এটি জান্নাতে যাওয়ার পথ সহজ করে।"
+                              )
+                            }
+                            className="cursor-pointer text-gray-400 hover:text-blue-500"
+                            title="বিস্তারিত দেখুন"
+                          >
+                            <BookOpen className="w-4 h-4 ml-2" />
+                          </button>
+                        </div>
+                        <TaskStatsRow stats={duaStats} />
                       </div>
-                      <TaskStatsRow stats={getTaskStats('salah', `${prayer.key}_dua`)} />
-                    </div>
 
-                    <div className="flex-shrink-0 ml-4">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isDuaCompleted}
-                          onChange={() => onToggleSalah(`${prayer.key}_dua`)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
-                      </label>
+                      <div className="flex-shrink-0 ml-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isDuaCompleted}
+                            onChange={() => onToggleSalah(`${prayer.key}_dua`)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Special Subtask for Fajr: সকাল বেলার যিকির */}
-              {prayer.hasMorningZikir && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-grow">
-                      <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
-                        <Sun className="w-3 h-3 mr-2 text-orange-500" />
-                        <span>সকাল বেলার যিকির</span>
-                        <span className="text-xs font-bold ml-1 text-orange-600">
-                          (+3p)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenDetails(
-                              "সকাল বেলার মাসনুন যিকির",
-                              "ফজরের পর সূর্যোদয় পর্যন্ত সময়টি যিকির ও দু'আর জন্য অত্যন্ত বরকতময়। এসময় আয়াতুল কুরসি, ৩ কুল, সাইয়্যিদুল ইস্তিগফার এবং সকালের নির্দিষ্ট মাসনুন দু'আগুলো পাঠ করা সুন্নাত।"
-                            )
-                          }
-                          className="cursor-pointer text-gray-400 hover:text-blue-500"
-                          title="বিস্তারিত দেখুন"
-                        >
-                          <BookOpen className="w-4 h-4 ml-2" />
-                        </button>
+              {prayer.hasMorningZikir && (() => {
+                const morningStats = getTaskStats('salah', 'fajr_morning_zikir');
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-100 relative">
+                    <CornerCrownBadge rank={morningStats.lifetimeRank} count={morningStats.lifetime} compact />
+                    <div className="flex items-center justify-between">
+                      <div className="flex-grow">
+                        <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
+                          <Sun className="w-3 h-3 mr-2 text-orange-500" />
+                          <span>সকাল বেলার যিকির</span>
+                          <span className="text-xs font-bold ml-1 text-orange-600">
+                            (+3p)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenDetails(
+                                "সকাল বেলার মাসনুন যিকির",
+                                "ফজরের পর সূর্যোদয় পর্যন্ত সময়টি যিকির ও দু'আর জন্য অত্যন্ত বরকতময়। এসময় আয়াতুল কুরসি, ৩ কুল, সাইয়্যিদুল ইস্তিগফার এবং সকালের নির্দিষ্ট মাসনুন দু'আগুলো পাঠ করা সুন্নাত।"
+                              )
+                            }
+                            className="cursor-pointer text-gray-400 hover:text-blue-500"
+                            title="বিস্তারিত দেখুন"
+                          >
+                            <BookOpen className="w-4 h-4 ml-2" />
+                          </button>
+                        </div>
+                        <TaskStatsRow stats={morningStats} />
                       </div>
-                      <TaskStatsRow stats={getTaskStats('salah', 'fajr_morning_zikir')} />
-                    </div>
 
-                    <div className="flex-shrink-0 ml-4">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isMorningZikirCompleted}
-                          onChange={() => onToggleSalah('fajr_morning_zikir')}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
-                      </label>
+                      <div className="flex-shrink-0 ml-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isMorningZikirCompleted}
+                            onChange={() => onToggleSalah('fajr_morning_zikir')}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Special Subtask for Maghrib: সন্ধ্যা বেলার যিকির */}
-              {prayer.hasEveningZikir && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-grow">
-                      <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
-                        <Moon className="w-3 h-3 mr-2 text-orange-500" />
-                        <span>সন্ধ্যা বেলার যিকির</span>
-                        <span className="text-xs font-bold ml-1 text-orange-600">
-                          (+3p)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenDetails(
-                              "সন্ধ্যা বেলার মাসনুন যিকির",
-                              "আসরের পর থেকে মাগরিব পর্যন্ত বা মাগরিবের পরের সময়টি সন্ধ্যার যিকিরের জন্য নির্ধারিত। এসময় আমানুর রাসুলু, ৩ কুল, এবং সন্ধ্যার মাসনুন দু'আগুলো পাঠ করা উচিত যা সারারাত নিরাপত্তার কারণ হয়।"
-                            )
-                          }
-                          className="cursor-pointer text-gray-400 hover:text-blue-500"
-                          title="বিস্তারিত দেখুন"
-                        >
-                          <BookOpen className="w-4 h-4 ml-2" />
-                        </button>
+              {prayer.hasEveningZikir && (() => {
+                const eveningStats = getTaskStats('salah', 'maghrib_evening_zikir');
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-100 relative">
+                    <CornerCrownBadge rank={eveningStats.lifetimeRank} count={eveningStats.lifetime} compact />
+                    <div className="flex items-center justify-between">
+                      <div className="flex-grow">
+                        <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
+                          <Moon className="w-3 h-3 mr-2 text-orange-500" />
+                          <span>সন্ধ্যা বেলার যিকির</span>
+                          <span className="text-xs font-bold ml-1 text-orange-600">
+                            (+3p)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenDetails(
+                                "সন্ধ্যা বেলার মাসনুন যিকির",
+                                "আসরের পর থেকে মাগরিব পর্যন্ত বা মাগরিবের পরের সময়টি সন্ধ্যার যিকিরের জন্য নির্ধারিত। এসময় আমানুর রাসুলু, ৩ কুল, এবং সন্ধ্যার মাসনুন দু'আগুলো পাঠ করা উচিত যা সারারাত নিরাপত্তার কারণ হয়।"
+                              )
+                            }
+                            className="cursor-pointer text-gray-400 hover:text-blue-500"
+                            title="বিস্তারিত দেখুন"
+                          >
+                            <BookOpen className="w-4 h-4 ml-2" />
+                          </button>
+                        </div>
+                        <TaskStatsRow stats={eveningStats} />
                       </div>
-                      <TaskStatsRow stats={getTaskStats('salah', 'maghrib_evening_zikir')} />
-                    </div>
 
-                    <div className="flex-shrink-0 ml-4">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isEveningZikirCompleted}
-                          onChange={() => onToggleSalah('maghrib_evening_zikir')}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
-                      </label>
+                      <div className="flex-shrink-0 ml-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isEveningZikirCompleted}
+                            onChange={() => onToggleSalah('maghrib_evening_zikir')}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}
@@ -319,8 +333,9 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
           return (
             <div
               key={prayer.key}
-              className={`flex items-center p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
+              className={`relative flex items-center p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
             >
+              <CornerCrownBadge rank={stats.lifetimeRank} count={stats.lifetime} />
               <div className="flex-grow">
                 <h3 className="text-base font-bold text-gray-800 flex items-center flex-wrap">
                   <Sun
