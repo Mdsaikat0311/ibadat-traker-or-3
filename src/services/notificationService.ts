@@ -436,6 +436,71 @@ export class NotificationService {
   }
 
   /**
+   * Schedule background Hadith notifications directly into Android AlarmManager / Cordova.
+   * Sends the actual Hadith text directly in the notification body so users can expand
+   * and read it right from their notification shade without having to open the app!
+   */
+  static scheduleCordovaHadithReminders(intervalMinutes = 60, count = 100): void {
+    if (!this.isCordovaAvailable()) {
+      console.log('[Cordova] Cannot schedule hadith notifications: Cordova plugin not detected.');
+      return;
+    }
+
+    // Cancel old schedules first
+    this.cancelCordovaHadithReminders();
+
+    try {
+      const notifications: any[] = [];
+      const now = Date.now();
+
+      for (let i = 1; i <= count; i++) {
+        const triggerTime = new Date(now + i * intervalMinutes * 60 * 1000);
+        const quote = getRandomQuote();
+
+        notifications.push({
+          id: 80000 + i,
+          title: '📜 হাদিস ও বাণী',
+          text: quote, // সরাসরি সম্পূর্ণ হাদিস নোটিফিকেশনে থাকবে
+          summary: '১ ঘণ্টার নসীহত',
+          trigger: { at: triggerTime },
+          foreground: true,
+          wakeup: true,
+          vibrate: true,
+          sound: true,
+          priority: 2,
+          importance: 4,
+          channel: 'hadith_channel_v3',
+          channelName: 'হাদিস রিমাইন্ডার',
+          channelDescription: 'প্রতি ১ ঘণ্টার নির্বাচিত হাদিস ও বাণী',
+          lockscreenVisibility: 1
+        });
+      }
+
+      window.cordova!.plugins!.notification!.local!.schedule(notifications);
+      console.log(`[Cordova] Successfully scheduled ${notifications.length} hourly hadith notifications.`);
+    } catch (e) {
+      console.warn("Failed scheduling Cordova hadith notifications", e);
+    }
+  }
+
+  /**
+   * Cancel all scheduled Cordova background hadith notifications
+   */
+  static cancelCordovaHadithReminders(): void {
+    if (!this.isCordovaAvailable()) return;
+    try {
+      const ids: number[] = [];
+      for (let i = 1; i <= 250; i++) {
+        ids.push(80000 + i);
+      }
+      window.cordova!.plugins!.notification!.local!.cancel(ids);
+      console.log('[Cordova] Cancelled all background hadith notifications.');
+    } catch (e) {
+      console.warn("Failed canceling Cordova hadith notifications", e);
+    }
+  }
+
+  /**
    * Periodic scheduler that runs inside the app (every 15-30 seconds).
    * Note: Only triggers in-app alert when app is foreground, and also sends sound/notification.
    */
@@ -484,14 +549,14 @@ export class NotificationService {
       }
     });
 
-    // 2. Check Auto Hadith (every 30 mins)
+    // 2. Check Auto Hadith (every 60 mins / 1 hour)
     if (autoHadithEnabled) {
       const elapsedMinutes = (Date.now() - lastHadithTimestamp) / (1000 * 60);
-      if (elapsedMinutes >= 30) {
+      if (elapsedMinutes >= 60) {
         lastHadithTimestamp = Date.now();
         const quote = getRandomQuote();
-        const title = `📖 প্রতিদিনের হাদীস`;
-        const msg = quote;
+        const title = `📜 হাদিস ও বাণী`;
+        const msg = quote; // সরাসরি সম্পূর্ণ হাদিস
         this.sendNotification(title, msg);
         onInAppNotification(title, msg);
       }

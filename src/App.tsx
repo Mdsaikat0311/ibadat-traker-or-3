@@ -8,6 +8,7 @@ import { ReminderDialog } from './components/dialogs/ReminderDialog';
 import { NoteDetailDialog } from './components/dialogs/NoteDetailDialog';
 import { LeaderboardDialog } from './components/dialogs/LeaderboardDialog';
 import { CustomAlertDialog } from './components/dialogs/CustomAlertDialog';
+import { getRandomQuote } from './data/hadithBank';
 
 import { SalahScreen } from './screens/SalahScreen';
 import { AmalScreen } from './screens/AmalScreen';
@@ -208,10 +209,16 @@ export const App: React.FC = () => {
     refreshAll();
     refreshFirebaseMetrics();
     NotificationService.syncAllCordovaReminders(repository.getReminders());
+    if (repository.isAutoHadithEnabled()) {
+      NotificationService.scheduleCordovaHadithReminders(60);
+    }
 
     const unsubscribe = NotificationService.onDeviceReady(() => {
       console.log('App: Cordova device is ready! Resyncing all reminders to Android AlarmManager...');
       NotificationService.syncAllCordovaReminders(repository.getReminders());
+      if (repository.isAutoHadithEnabled()) {
+        NotificationService.scheduleCordovaHadithReminders(60);
+      }
     });
 
     const unsubscribeCommunity = subscribeCommunityUsers((users) => {
@@ -346,13 +353,17 @@ export const App: React.FC = () => {
     const next = !autoHadithEnabled;
     if (next) {
       await NotificationService.requestPermission();
-      NotificationService.sendNotification("হাদিস রিমাইন্ডার চালু", "প্রতি ৩০ মিনিট পর পর হাদিস নোটিফিকেশন আসবে।");
+      const quote = getRandomQuote();
+      NotificationService.sendNotification("📜 হাদিস ও বাণী", quote);
+      NotificationService.scheduleCordovaHadithReminders(60);
+    } else {
+      NotificationService.cancelCordovaHadithReminders();
     }
     repository.setAutoHadithEnabled(next);
     setAutoHadithEnabled(next);
     saveToFirebaseCloud();
     if (next) {
-      showAlert("চালু হয়েছে! প্রতি ৩০ মিনিট পর পর হাদিস আসবে।", true);
+      showAlert("চালু হয়েছে! প্রতি ১ ঘণ্টা পর পর সরাসরি নোটিফিকেশনে নতুন হাদিস আসবে।", true);
     } else {
       showAlert("অটোমেটিক হাদিস রিমাইন্ডার বন্ধ করা হয়েছে।", false);
     }
@@ -623,6 +634,7 @@ export const App: React.FC = () => {
             onRequestReset={() => setShowResetDialog(true)}
             onOpenLeaderboard={(metric, title) => setLeaderboardModal({ metric, title })}
             getMyRank={getMyRank}
+            onShowAlert={showAlert}
           />
         )}
       </main>

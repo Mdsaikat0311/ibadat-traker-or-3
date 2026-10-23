@@ -33,6 +33,7 @@ interface SettingsScreenProps {
   onRequestReset: () => void;
   onOpenLeaderboard: (metricType: string, title: string) => void;
   getMyRank: (metricType: string) => number;
+  onShowAlert: (message: string, isSuccess: boolean) => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -53,7 +54,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onSetLifetimeStartDate,
   onRequestReset,
   onOpenLeaderboard,
-  getMyRank
+  getMyRank,
+  onShowAlert
 }) => {
   // Auth Form State
   const [authTab, setAuthTab] = useState<'signin' | 'signup'>('signin');
@@ -131,12 +133,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             url: "package:" + packageName
           },
           () => console.log("Settings opened"),
-          () => alert("সেটিংস ওপেন করা যায়নি। অনুগ্রহ করে ম্যানুয়ালি পারমিশন দিন।")
+          () => onShowAlert("সেটিংস ওপেন করা যায়নি। অনুগ্রহ করে ম্যানুয়ালি পারমিশন দিন।", false)
         );
         return;
       }
     }
-    alert("মোবাইলের Settings > Apps > Ibadat Tracker > Alarms & Reminders থেকে 'Allow' পারমিশন অন করুন।");
+    onShowAlert("মোবাইলের Settings > Apps > Ibadat Tracker > Alarms & Reminders থেকে 'Allow' পারমিশন অন করুন।", true);
   };
 
   return (
@@ -342,7 +344,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span>অটোমেটিক হাদিস</span>
             </h3>
             <p className="text-xs text-gray-500 mt-1">
-              প্রতি ৩০ মিনিট পর পর (অনলাইন/অফলাইন)
+              প্রতি ১ ঘণ্টা পর পর (অনলাইন/অফলাইন)
+            </p>
+            <p className="text-[11px] text-teal-600 font-medium mt-0.5">
+              সরাসরি নোটিফিকেশন প্যানেলেই সম্পূর্ণ হাদিস পড়তে পারবেন
             </p>
           </div>
 
