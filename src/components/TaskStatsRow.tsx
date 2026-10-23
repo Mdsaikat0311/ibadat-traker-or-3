@@ -15,9 +15,9 @@ export const TaskStatsRow: React.FC<TaskStatsRowProps> = ({ stats }) => {
   const lifePct = stats.totalLifetimeDays > 0 ? stats.lifetime / stats.totalLifetimeDays : 0;
   const lifeClass = lifePct >= 0.5 ? 'text-green-600' : 'text-red-500';
 
-  const weekRank = stats.weekRank ?? 10;
-  const monthRank = stats.monthRank ?? 10;
-  const lifetimeRank = stats.lifetimeRank ?? 10;
+  const weekRank = stats.weekRank ?? 1;
+  const monthRank = stats.monthRank ?? 1;
+  const lifetimeRank = stats.lifetimeRank ?? 1;
 
   const renderBadge = (rank: number, label: string) => {
     let icon = '';

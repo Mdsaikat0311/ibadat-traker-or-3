@@ -849,13 +849,9 @@ export class IbadatRepository {
 
     // Dense tied rank calculation:
     // Identical scores get identical rank (e.g. all 7/7 users get #1)
-    // If current user is sole performer, they are #1
+    // If two or three users share the same count of days, they share the exact same rank.
+    // The next score group gets the next rank (e.g., 1, 1, 1 -> 2, 2 -> 3).
     const calcTiedRank = (myScore: number, otherScores: number[]): number => {
-      if (myScore === 0) {
-        const positiveUniques = Array.from(new Set(otherScores.filter((s) => s > 0))).sort((a, b) => b - a);
-        return Math.max(positiveUniques.length + 1, 10);
-      }
-
       const all = [myScore, ...otherScores];
       const uniqueDescending = Array.from(new Set(all)).sort((a, b) => b - a);
       const idx = uniqueDescending.indexOf(myScore);
@@ -981,6 +977,36 @@ export class IbadatRepository {
     const yesterdayKey = this.formatIsoDate(yesterday);
     const userYesterday = this.calculatePoints(yesterdayKey);
 
+    if (this.communityUsers && this.communityUsers.length > 0) {
+      const userList: Array<{ name: string; points: number }> = [];
+      const currentUid = this.getCurrentUser()?.id;
+      userList.push({
+        name: this.getUserName(),
+        points: userYesterday
+      });
+
+      this.communityUsers.forEach((u) => {
+        if (currentUid && u.uid === currentUid) return;
+        const pts = Number(u.pointsHistory?.[yesterdayKey]) || 0;
+        if (pts > 0) {
+          userList.push({
+            name: u.name || 'ব্যবহারকারী',
+            points: pts
+          });
+        }
+      });
+
+      userList.sort((a, b) => b.points - a.points);
+      if (userList.length > 0 && userList[0].points > 0) {
+        const topPts = userList[0].points;
+        const topUsers = userList.filter((u) => u.points === topPts);
+        return {
+          name: topUsers.map((u) => u.name).join(', '),
+          points: topPts
+        };
+      }
+    }
+
     if (userYesterday > 0) {
       return {
         name: this.getUserName(),
@@ -1077,10 +1103,18 @@ export class IbadatRepository {
 
     list.sort((a, b) => b.points - a.points);
 
-    return list.map((item, idx) => ({
-      ...item,
-      rank: idx + 1
-    }));
+    // Dense ranking: Equal scores get the identical rank;
+    // next score group gets the next sequential rank (1, 1, 1 -> 2, 2 -> 3...)
+    let currentRank = 1;
+    return list.map((item, idx) => {
+      if (idx > 0 && item.points < list[idx - 1].points) {
+        currentRank++;
+      }
+      return {
+        ...item,
+        rank: currentRank
+      };
+    });
   }
 
   resetAllData(): void {

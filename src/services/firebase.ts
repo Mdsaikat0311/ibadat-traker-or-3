@@ -86,63 +86,141 @@ export async function getTopUsersByMetric(
 
     const processedUsers: Array<{ id: string; name: string; points: number }> = [];
     const today = new Date();
-    const yesterday = new Date();
+    const todayIso = getDateKey(today); // "YYYY-MM-DD"
+
+    const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
+
+    const currentUid = auth.currentUser ? auth.currentUser.uid : null;
 
     snapshot.forEach((childSnap) => {
       const data = childSnap.val();
       if (!data) return;
-      const history = data.pointsHistory || {};
-      const stats = data.stats || {};
+      const uid = childSnap.key || '';
+      const isCurrent = currentUid === uid;
+
+      const history: Record<string, any> = data.pointsHistory || {};
+
+      // Helper to retrieve points for a specific Date object from pointsHistory or fullState
+      const getPointsForDateObj = (d: Date): number => {
+        const iso = getDateKey(d);
+        const alt = d.toDateString();
+        let pts = 0;
+        if (history[iso] !== undefined) pts = Math.max(pts, Number(history[iso]) || 0);
+        if (history[alt] !== undefined) pts = Math.max(pts, Number(history[alt]) || 0);
+
+        if (data.fullState) {
+          let fs = data.fullState;
+          if (typeof fs === 'string') {
+            try { fs = JSON.parse(fs); } catch {}
+          }
+          if (fs?.pointsHistory) {
+            if (fs.pointsHistory[iso] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[iso]) || 0);
+            if (fs.pointsHistory[alt] !== undefined) pts = Math.max(pts, Number(fs.pointsHistory[alt]) || 0);
+          }
+        }
+        return pts;
+      };
+
       let score = 0;
 
       if (metricType === 'todayPoints') {
-        score = Math.max(getPointsForDate(history, today), Number(stats.todayPoints) || 0);
+        // Today's best: Strictly points recorded on today's actual date
+        score = getPointsForDateObj(today);
       } else if (metricType === 'yesterdayPoints') {
-        score = Math.max(getPointsForDate(history, yesterday), Number(stats.yesterdayPoints) || 0);
+        // Yesterday's best: Strictly points recorded on yesterday's actual date
+        score = getPointsForDateObj(yesterday);
       } else if (metricType === 'totalPoints7Days') {
-        let sum7 = 0;
+        // Last 7 days: Sum of actual points recorded across the 7-day period
+        // (checks both including today and from yesterday back 7 full days)
+        let sum7WithToday = 0;
+        let sum7FromYesterday = 0;
+
         for (let i = 0; i < 7; i++) {
-          const d = new Date(today);
-          d.setDate(today.getDate() - i);
-          sum7 += getPointsForDate(history, d);
+          const dToday = new Date(today);
+          dToday.setDate(today.getDate() - i);
+          sum7WithToday += getPointsForDateObj(dToday);
+
+          const dYest = new Date(yesterday);
+          dYest.setDate(yesterday.getDate() - i);
+          sum7FromYesterday += getPointsForDateObj(dYest);
         }
-        score = Math.max(sum7, Number(stats.totalPoints7Days) || 0);
+
+        score = Math.max(sum7WithToday, sum7FromYesterday);
       } else if (metricType === 'totalPoints30Days') {
-        let sum30 = 0;
+        // Last 30 days: Sum of actual points recorded across the 30-day period
+        // (checks both including today and from yesterday back 30 full days)
+        let sum30WithToday = 0;
+        let sum30FromYesterday = 0;
+
         for (let i = 0; i < 30; i++) {
+          const dToday = new Date(today);
+          dToday.setDate(today.getDate() - i);
+          sum30WithToday += getPointsForDateObj(dToday);
+
+          const dYest = new Date(yesterday);
+          dYest.setDate(yesterday.getDate() - i);
+          sum30FromYesterday += getPointsForDateObj(dYest);
+        }
+
+        score = Math.max(sum30WithToday, sum30FromYesterday);
+      } else if (metricType === 'highScore30Days') {
+        // Maximum single-day score in the last 30 days
+        let high = 0;
+        for (let i = 0; i <= 30; i++) {
           const d = new Date(today);
           d.setDate(today.getDate() - i);
-          sum30 += getPointsForDate(history, d);
+          const p = getPointsForDateObj(d);
+          if (p > high) high = p;
         }
-        score = Math.max(sum30, Number(stats.totalPoints30Days) || 0);
+        score = high;
       } else if (metricType === 'totalPoints') {
-        score = Math.max(
-          getTotalHistoryPoints(history),
-          Number(stats.totalLifetimePoints) || 0,
-          Number(stats.totalPoints) || 0
-        );
-      } else if (metricType === 'highScore30Days') {
-        score = Number(stats.highScore30Days) || 0;
+        // Lifetime: Sum of all points recorded on dates up to today
+        let lifetime = 0;
+        Object.entries(history).forEach(([dateStr, pVal]) => {
+          if (dateStr <= todayIso || dateStr.length > 10) {
+            lifetime += Number(pVal) || 0;
+          }
+        });
+
+        if (data.fullState) {
+          let fs = data.fullState;
+          if (typeof fs === 'string') {
+            try { fs = JSON.parse(fs); } catch {}
+          }
+          if (fs?.pointsHistory && typeof fs.pointsHistory === 'object') {
+            Object.entries(fs.pointsHistory).forEach(([dateStr, pVal]) => {
+              if ((dateStr <= todayIso || dateStr.length > 10) && !history[dateStr]) {
+                lifetime += Number(pVal) || 0;
+              }
+            });
+          }
+        }
+
+        if (data.stats?.totalLifetimePoints && Number(data.stats.totalLifetimePoints) > lifetime) {
+          lifetime = Number(data.stats.totalLifetimePoints);
+        }
+
+        score = lifetime;
       }
 
-      processedUsers.push({
-        id: childSnap.key || '',
-        name: data.name || 'বেনামী',
-        points: score
-      });
+      if (score > 0 || isCurrent) {
+        processedUsers.push({
+          id: uid,
+          name: data.name || (isCurrent && auth.currentUser?.displayName ? auth.currentUser.displayName : 'ব্যবহারকারী'),
+          points: score
+        });
+      }
     });
 
     processedUsers.sort((a, b) => b.points - a.points);
 
-    const currentUid = auth.currentUser ? auth.currentUser.uid : null;
-    const finalLimit = limit === 0 ? processedUsers.length : limit;
-    const sliced = processedUsers.slice(0, finalLimit);
-
+    // Dense ranking: Equal scores get the identical rank;
+    // next score group gets the next sequential rank (1, 1, 1 -> 2, 2 -> 3...)
     let currentRank = 1;
-    return sliced.map((u, idx) => {
-      if (idx > 0 && u.points < sliced[idx - 1].points) {
-        currentRank = idx + 1;
+    const rankedUsers = processedUsers.map((u, idx) => {
+      if (idx > 0 && u.points < processedUsers[idx - 1].points) {
+        currentRank++;
       }
       return {
         id: u.id,
@@ -152,6 +230,9 @@ export async function getTopUsersByMetric(
         isCurrentUser: currentUid === u.id
       };
     });
+
+    const finalLimit = limit === 0 ? rankedUsers.length : limit;
+    return rankedUsers.slice(0, finalLimit);
   } catch (error) {
     console.warn("Error calculating leaderboard from Firebase:", error);
     return [];
@@ -167,9 +248,9 @@ export async function fetchUserRank(statKey: string): Promise<number | null> {
 
   try {
     const sorted = await getTopUsersByMetric(statKey, 0);
-    const myIndex = sorted.findIndex((u) => u.id === user.uid);
-    if (myIndex !== -1) {
-      return myIndex + 1;
+    const myUser = sorted.find((u) => u.id === user.uid);
+    if (myUser) {
+      return myUser.rank;
     }
     return null;
   } catch {
@@ -178,15 +259,17 @@ export async function fetchUserRank(statKey: string): Promise<number | null> {
 }
 
 /**
- * Fetch yesterday champion from Firebase
+ * Fetch yesterday champion from Firebase (includes all users tied for 1st place)
  */
 export async function fetchFirebaseChampion(): Promise<{ name: string; points: number } | null> {
   try {
-    const champions = await getTopUsersByMetric('yesterdayPoints', 1);
+    const champions = await getTopUsersByMetric('yesterdayPoints', 0);
     if (champions.length > 0 && champions[0].points > 0) {
+      const topPoints = champions[0].points;
+      const topUsers = champions.filter((u) => u.points === topPoints);
       return {
-        name: champions[0].name,
-        points: champions[0].points
+        name: topUsers.map((u) => u.name).join(', '),
+        points: topPoints
       };
     }
     return null;
@@ -347,9 +430,15 @@ export async function fetchUserRanksForMonth(
 
     Object.entries(dateScores).forEach(([dateStr, list]) => {
       list.sort((a, b) => b.points - a.points);
-      const myIdx = list.findIndex((item) => item.uid === user.uid);
-      if (myIdx !== -1) {
-        myRanks[dateStr] = myIdx + 1;
+      let currentRank = 1;
+      for (let i = 0; i < list.length; i++) {
+        if (i > 0 && list[i].points < list[i - 1].points) {
+          currentRank++;
+        }
+        if (list[i].uid === user.uid) {
+          myRanks[dateStr] = currentRank;
+          break;
+        }
       }
     });
 

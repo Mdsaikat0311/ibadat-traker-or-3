@@ -108,7 +108,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   useEffect(() => {
     let mounted = true;
     LEADERBOARD_CONFIG.forEach((cfg) => {
-      getTopUsersByMetric(cfg.id, 3).then((res) => {
+      getTopUsersByMetric(cfg.id, 5).then((res) => {
         if (mounted && res && res.length > 0) {
           setTopUsersMap((prev) => ({ ...prev, [cfg.id]: res }));
         }
@@ -396,24 +396,30 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                 </div>
 
                 <div className="p-2">
-                  {topUsers.map((u, idx) => {
+                  {topUsers.map((u) => {
                     let rankBadge = null;
-                    if (idx === 0) {
+                    if (u.rank === 1) {
                       rankBadge = (
-                        <div className="w-6 h-6 rounded-full bg-yellow-100 border border-yellow-200 flex items-center justify-center shadow-xs">
+                        <div className="w-6 h-6 rounded-full bg-yellow-100 border border-yellow-200 flex items-center justify-center shadow-xs" title="১ম স্থান">
                           <Crown className="w-3.5 h-3.5 text-yellow-600 fill-yellow-600" />
                         </div>
                       );
-                    } else if (idx === 1) {
+                    } else if (u.rank === 2) {
                       rankBadge = (
-                        <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shadow-xs">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shadow-xs" title="২য় স্থান">
                           <Medal className="w-3.5 h-3.5 text-gray-500" />
                         </div>
                       );
-                    } else if (idx === 2) {
+                    } else if (u.rank === 3) {
                       rankBadge = (
-                        <div className="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shadow-xs">
+                        <div className="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shadow-xs" title="৩য় স্থান">
                           <Medal className="w-3.5 h-3.5 text-orange-600" />
+                        </div>
+                      );
+                    } else {
+                      rankBadge = (
+                        <div className="w-6 h-6 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center shadow-xs text-[10px] font-bold text-teal-700" title={`#${u.rank} স্থান`}>
+                          #{u.rank}
                         </div>
                       );
                     }

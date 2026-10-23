@@ -3,7 +3,6 @@ import { CheckCircle, BookOpen, Bell } from 'lucide-react';
 import { IbadatRepository } from '../data/repository';
 import { AppStats, RoutineTaskItem, TaskStats, ReminderSetting } from '../types/ibadat';
 import { TaskStatsRow } from '../components/TaskStatsRow';
-import { CornerCrownBadge } from '../components/CornerCrownBadge';
 
 interface AmalScreenProps {
   appStats: AppStats;
@@ -53,7 +52,6 @@ export const AmalScreen: React.FC<AmalScreenProps> = ({
                 key={task.key}
                 className={`relative flex items-center p-3 rounded-xl shadow-xs border transition duration-300 ${containerClass}`}
               >
-                <CornerCrownBadge rank={stats.lifetimeRank} count={stats.lifetime} />
                 <div className="flex-grow">
                   <h3 className={`text-sm ${textClass} flex items-center`}>
                     <CheckCircle

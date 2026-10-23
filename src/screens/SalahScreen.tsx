@@ -13,7 +13,6 @@ import { IbadatRepository } from '../data/repository';
 import { AppStats, ChampionInfo, TaskStats, ReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { TaskStatsRow } from '../components/TaskStatsRow';
-import { CornerCrownBadge } from '../components/CornerCrownBadge';
 
 interface SalahScreenProps {
   appStats: AppStats;
@@ -119,7 +118,6 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
               key={prayer.key}
               className={`relative flex flex-col p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
             >
-              <CornerCrownBadge rank={stats.lifetimeRank} count={stats.lifetime} />
               <div className="flex items-center justify-between w-full">
                 <div className="flex-grow">
                   <h3 className="text-base font-bold text-gray-800 flex items-center flex-wrap">
@@ -182,7 +180,6 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
                 const duaStats = getTaskStats('salah', `${prayer.key}_dua`);
                 return (
                   <div className="mt-3 pt-3 border-t border-gray-100 relative">
-                    <CornerCrownBadge rank={duaStats.lifetimeRank} count={duaStats.lifetime} compact />
                     <div className="flex items-center justify-between">
                       <div className="flex-grow">
                         <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
@@ -229,7 +226,6 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
                 const morningStats = getTaskStats('salah', 'fajr_morning_zikir');
                 return (
                   <div className="mt-3 pt-3 border-t border-gray-100 relative">
-                    <CornerCrownBadge rank={morningStats.lifetimeRank} count={morningStats.lifetime} compact />
                     <div className="flex items-center justify-between">
                       <div className="flex-grow">
                         <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
@@ -276,7 +272,6 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
                 const eveningStats = getTaskStats('salah', 'maghrib_evening_zikir');
                 return (
                   <div className="mt-3 pt-3 border-t border-gray-100 relative">
-                    <CornerCrownBadge rank={eveningStats.lifetimeRank} count={eveningStats.lifetime} compact />
                     <div className="flex items-center justify-between">
                       <div className="flex-grow">
                         <div className="flex items-center text-sm text-gray-700 font-medium flex-wrap">
@@ -335,7 +330,6 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
               key={prayer.key}
               className={`relative flex items-center p-4 rounded-xl border transition duration-300 shadow-xs ${containerClass}`}
             >
-              <CornerCrownBadge rank={stats.lifetimeRank} count={stats.lifetime} />
               <div className="flex-grow">
                 <h3 className="text-base font-bold text-gray-800 flex items-center flex-wrap">
                   <Sun
