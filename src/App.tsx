@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { repository } from './data/repository';
+import { repository, IbadatRepository } from './data/repository';
 import { DuaNote, TaskStats, ChampionInfo } from './types/ibadat';
 import { TabId, BottomNav } from './components/BottomNav';
 import { AppHeader } from './components/AppHeader';
@@ -17,6 +17,7 @@ import { NotesScreen } from './screens/NotesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { NotificationService } from './services/notificationService';
+import { FCMService } from './services/fcmService';
 import {
   auth,
   User,
@@ -145,6 +146,12 @@ export const App: React.FC = () => {
         repository.savePointsForDate(currentViewingDate, pts);
         const stats = repository.getAppStats(currentViewingDate);
         await syncStateToFirebase(currentViewingDate, pts, stats, repository.getFullState());
+
+        // Sync FCM push token to user profile if available
+        const currentFcmToken = FCMService.getToken();
+        if (currentFcmToken) {
+          FCMService.saveTokenToFirebase(currentFcmToken);
+        }
       }
     });
 
@@ -213,6 +220,12 @@ export const App: React.FC = () => {
       NotificationService.scheduleCordovaHadithReminders(60);
     }
 
+    // Initialize Firebase Cloud Messaging and Cordova Push plugins
+    FCMService.init();
+    const unsubscribePush = FCMService.onMessage((payload) => {
+      showAlert(`${payload.title}\n${payload.body}`, true);
+    });
+
     const unsubscribe = NotificationService.onDeviceReady(() => {
       console.log('App: Cordova device is ready! Resyncing all reminders to Android AlarmManager...');
       NotificationService.syncAllCordovaReminders(repository.getReminders());
@@ -229,8 +242,9 @@ export const App: React.FC = () => {
     return () => {
       unsubscribe();
       unsubscribeCommunity();
+      unsubscribePush();
     };
-  }, [refreshAll, refreshFirebaseMetrics]);
+  }, [refreshAll, refreshFirebaseMetrics, showAlert]);
 
   // Periodic reminder checking interval (every 15s) for in-app and browser notifications
   useEffect(() => {
@@ -497,10 +511,11 @@ export const App: React.FC = () => {
         };
       case 'dhikr': {
         const todayDhikr = repository.getLog("dhikr", repository.getTodayKey());
-        const dhikrCompleted = Object.values(todayDhikr).filter(Boolean).length;
+        const visibleTasks = IbadatRepository.DHIKR_CHECKLIST_TASKS.filter((t) => !t.hidden);
+        const dhikrCompleted = visibleTasks.filter((t) => todayDhikr[t.key]).length;
         return {
           title: "যিকির চেকলিস্ট",
-          subtitle: `${dhikrCompleted}/৮ সম্পন্ন`
+          subtitle: `${dhikrCompleted}/${visibleTasks.length} সম্পন্ন`
         };
       }
       case 'duaNotes':

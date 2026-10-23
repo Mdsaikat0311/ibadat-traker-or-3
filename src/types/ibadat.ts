@@ -22,10 +22,11 @@ export interface NafilPrayerItem {
 export interface RoutineTaskItem {
   key: string;
   name: string;
-  target: number;
+  target: number | string;
   point: number;
   details: string;
   arabic?: string;
+  hidden?: boolean;
 }
 
 export interface DuaNote {

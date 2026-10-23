@@ -27,7 +27,7 @@ export const DhikrScreen: React.FC<DhikrScreenProps> = ({
         গুরুত্বপূর্ণ দৈনিক যিকির
       </h2>
       <div className="space-y-3">
-        {IbadatRepository.DHIKR_CHECKLIST_TASKS.map((task) => {
+        {IbadatRepository.DHIKR_CHECKLIST_TASKS.filter((task) => !task.hidden).map((task) => {
           const isCompleted = Boolean(dhikrLog && dhikrLog[task.key]);
           const textClass = isCompleted ? 'text-gray-900 font-medium' : 'text-gray-700';
           const containerClass = isCompleted ? 'bg-green-50 border-green-300' : 'bg-white border-gray-100';
@@ -51,8 +51,8 @@ export const DhikrScreen: React.FC<DhikrScreenProps> = ({
                   <span className="text-xs font-medium ml-2 text-green-600">{pointText}</span>
                 </h3>
 
-                <div className="text-xs text-gray-500 mt-1 flex items-center">
-                  <span>{task.arabic}</span>
+                <div className="text-xs text-gray-500 mt-1 flex items-center flex-wrap gap-1">
+                  <span className="truncate max-w-[200px] sm:max-w-xs">{task.arabic}</span>
                   <button
                     type="button"
                     onClick={() => onOpenDetails(task.name, task.details)}

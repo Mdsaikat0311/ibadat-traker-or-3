@@ -315,6 +315,121 @@ export const SalahScreen: React.FC<SalahScreenProps> = ({
             </div>
           );
         })}
+
+        {/* Combined Card: ওযুর দু'আ ও সালাত শেষে আয়াতুল কুরসি (৫ পয়েন্ট করে) */}
+        {(() => {
+          const isOjuDone = Boolean(salahLog['oju_kalema_shahadat']);
+          const isAyatulDone = Boolean(salahLog['salat_ayatul_kursi']);
+          const ojuStats = getTaskStats('salah', 'oju_kalema_shahadat');
+          const ayatulStats = getTaskStats('salah', 'salat_ayatul_kursi');
+
+          const cardBg = isOjuDone && isAyatulDone
+            ? 'bg-teal-50 border-teal-300'
+            : isOjuDone || isAyatulDone
+              ? 'bg-teal-50/40 border-teal-200'
+              : 'bg-white border-gray-100';
+
+          return (
+            <div
+              className={`relative flex flex-col p-4 rounded-xl border transition duration-300 shadow-xs ${cardBg}`}
+            >
+              {/* Part 1: ওজুর শেষে কালেমা শাহাদাত */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex-grow">
+                  <h3 className="text-sm font-semibold text-gray-800 flex items-center flex-wrap">
+                    <CheckCircle
+                      className={`w-3.5 h-3.5 mr-2 transition-opacity ${
+                        isOjuDone ? 'opacity-100 text-teal-600' : 'opacity-0 text-gray-400'
+                      }`}
+                    />
+                    <span>ওজুর শেষে কালেমা শাহাদাত</span>
+                    <span className="text-xs font-bold ml-1.5 text-teal-600">
+                      (+10p)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenDetails(
+                          "ওজুর শেষে কালেমা শাহাদাত",
+                          "ওযুর শুরুতে 'বিসমিল্লাহ' এবং ওযু শেষে কালেমা শাহাদাত (আশহাদু আল্লা ইলাহা ইল্লাল্লাহু ওয়াহদাহু লা শারিকা লাহু, ওয়া আশহাদু আন্না মুহাম্মাদান আবদুহু ওয়া রাসুলুহু) পাঠ করলে জান্নাতের আটটি দরজার যেকোনো দরজা দিয়ে প্রবেশের সুসংবাদ রয়েছে। (সহীহ মুসলিম)"
+                        )
+                      }
+                      className="cursor-pointer text-gray-400 hover:text-blue-500"
+                      title="বিস্তারিত দেখুন"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 ml-2" />
+                    </button>
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5 ml-[22px]">
+                    প্রতি ওযুর শেষে কালিমা শাহাদাত পড়া
+                  </p>
+                  <TaskStatsRow stats={ojuStats} />
+                </div>
+
+                <div className="flex-shrink-0 ml-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isOjuDone}
+                      onChange={() => onToggleSalah('oju_kalema_shahadat')}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
+                  </label>
+                </div>
+              </div>
+
+              {/* Divider joining the two items */}
+              <div className="my-2.5 border-t border-gray-100" />
+
+              {/* Part 2: নামাজ শেষে আয়াতুল কুরসি */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex-grow">
+                  <h3 className="text-sm font-semibold text-gray-800 flex items-center flex-wrap">
+                    <CheckCircle
+                      className={`w-3.5 h-3.5 mr-2 transition-opacity ${
+                        isAyatulDone ? 'opacity-100 text-teal-600' : 'opacity-0 text-gray-400'
+                      }`}
+                    />
+                    <span>নামাজ শেষে আয়াতুল কুরসি</span>
+                    <span className="text-xs font-bold ml-1.5 text-teal-600">
+                      (+10p)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenDetails(
+                          "নামাজ শেষে আয়াতুল কুরসি",
+                          "রাসুলুল্লাহ (সা.) বলেছেন: 'যে ব্যক্তি প্রত্যেক ফরয সালাতের পর আয়াতুল কুরসি পাঠ করবে, তার জান্নাতে প্রবেশের পথে মৃত্যু ছাড়া আর কোনো বাধা থাকবে না।' (সহীহ ইবনে হিব্বান)"
+                        )
+                      }
+                      className="cursor-pointer text-gray-400 hover:text-blue-500"
+                      title="বিস্তারিত দেখুন"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 ml-2" />
+                    </button>
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5 ml-[22px]">
+                    প্রত্যেক নামাজের শেষে আয়াতুল কুরসি পড়া
+                  </p>
+                  <TaskStatsRow stats={ayatulStats} />
+                </div>
+
+                <div className="flex-shrink-0 ml-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isAyatulDone}
+                      onChange={() => onToggleSalah('salat_ayatul_kursi')}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none rounded-full relative transition-all duration-300 before:content-[''] before:absolute before:top-[2px] before:left-[2px] before:bg-white before:h-5 before:w-5 before:rounded-full before:transition-all before:duration-300 before:shadow-md peer-checked:bg-teal-600 peer-checked:before:translate-x-4" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Section: Nawafil Prayers */}

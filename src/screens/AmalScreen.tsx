@@ -53,17 +53,24 @@ export const AmalScreen: React.FC<AmalScreenProps> = ({
                 className={`relative flex items-center p-3 rounded-xl shadow-xs border transition duration-300 ${containerClass}`}
               >
                 <div className="flex-grow">
-                  <h3 className={`text-sm ${textClass} flex items-center`}>
+                  <h3 className={`text-sm ${textClass} flex items-start`}>
                     <CheckCircle
-                      className={`w-4 h-4 mr-2 transition-opacity ${
+                      className={`w-4 h-4 mr-2 mt-0.5 shrink-0 transition-opacity ${
                         isCompleted ? 'opacity-100 text-green-600' : 'opacity-0 text-gray-400'
                       }`}
                     />
-                    <span>{task.name}</span>
-                    <span className="text-xs font-medium ml-2 text-green-600">{pointText}</span>
+                    <div>
+                      <span className="whitespace-pre-line leading-snug">{task.name}</span>
+                      <span className="text-xs font-medium ml-2 text-green-600 inline-block">{pointText}</span>
+                    </div>
                   </h3>
                   <div className="text-xs text-gray-500 mt-1 flex items-center">
-                    <span>টার্গেট: {task.target} বার</span>
+                    <span>
+                      টার্গেট:{' '}
+                      {task.target === 'আনলিমিটেড' || (typeof task.target === 'number' && task.target >= 10000)
+                        ? 'আনলিমিটেড'
+                        : `${task.target} বার`}
+                    </span>
                     <button
                       type="button"
                       onClick={() => onOpenDetails(task.name, task.details)}

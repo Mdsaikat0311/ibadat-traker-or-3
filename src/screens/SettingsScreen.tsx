@@ -443,8 +443,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
 
-        {/* Data Reset Button */}
-        <div className="bg-white p-5 rounded-xl shadow-md border border-red-100 mb-5">
+        {/* Data Reset Button - Hidden */}
+        <div className="hidden" style={{ display: 'none' }} aria-hidden="true">
           <h2 className="text-lg font-bold text-red-600 mb-2 flex items-center">
             <RotateCcw className="w-5 h-5 mr-2" />
             <span>ডাটা রিসেট</span>

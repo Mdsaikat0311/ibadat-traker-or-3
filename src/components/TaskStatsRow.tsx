@@ -36,7 +36,7 @@ export const TaskStatsRow: React.FC<TaskStatsRowProps> = ({ stats }) => {
 
     return (
       <span
-        className={`inline-flex items-center ml-0.5 px-1 py-0 rounded-full text-[8px] sm:text-[8.5px] font-extrabold border shadow-2xs leading-none ${badgeStyle}`}
+        className={`inline-flex items-center ml-0.5 px-1 py-0.5 rounded-full text-[8.5px] sm:text-[9.5px] font-extrabold border shadow-2xs leading-none shrink-0 ${badgeStyle}`}
         title={`${label}: #${rank}`}
       >
         {icon}#{rank}
@@ -45,18 +45,18 @@ export const TaskStatsRow: React.FC<TaskStatsRowProps> = ({ stats }) => {
   };
 
   return (
-    <div className="flex items-center flex-nowrap whitespace-nowrap gap-x-1 sm:gap-x-1.5 pt-1 text-[8.5px] sm:text-[9.5px] font-bold tracking-tight overflow-hidden">
-      <span className={`inline-flex items-center flex-shrink-0 ${weekClass}`}>
+    <div className="flex items-center flex-nowrap whitespace-nowrap gap-x-1 sm:gap-x-1.5 pt-1 text-[10px] sm:text-[11px] font-bold tracking-tight overflow-hidden">
+      <span className={`inline-flex items-center flex-shrink-0 whitespace-nowrap ${weekClass}`}>
         <span>Week({stats.week}/{stats.totalWeekDays})</span>
         {renderBadge(weekRank, 'সাপ্তাহিক র‍্যাংক')}
       </span>
 
-      <span className={`inline-flex items-center flex-shrink-0 ${monthClass}`}>
+      <span className={`inline-flex items-center flex-shrink-0 whitespace-nowrap ${monthClass}`}>
         <span>Month({stats.month}/{stats.totalMonthDays})</span>
         {renderBadge(monthRank, 'মাসিক র‍্যাংক')}
       </span>
 
-      <span className={`inline-flex items-center flex-shrink-0 ${lifeClass}`}>
+      <span className={`inline-flex items-center flex-shrink-0 whitespace-nowrap ${lifeClass}`}>
         <span>Lifetime({stats.lifetime}/{stats.totalLifetimeDays})</span>
         {renderBadge(lifetimeRank, 'লাইফটাইম র‍্যাংক')}
       </span>
