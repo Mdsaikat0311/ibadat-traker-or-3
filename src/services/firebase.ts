@@ -13,9 +13,12 @@ import {
   ref,
   get,
   child,
-  update
+  update,
+  onValue
 } from 'firebase/database';
-import { LeaderboardUser } from '../types/ibadat';
+import { LeaderboardUser, CommunityUserState } from '../types/ibadat';
+
+export type { CommunityUserState };
 
 // Configuration from environment or original application
 const firebaseConfig = {
@@ -332,6 +335,94 @@ export async function fetchUserRanksForMonth(
   } catch (err) {
     console.warn("fetchUserRanksForMonth error:", err);
     return {};
+  }
+}
+
+/**
+ * Fetch all registered users from Firebase Realtime Database
+ */
+export async function fetchAllCommunityUsers(): Promise<CommunityUserState[]> {
+  try {
+    const usersRef = ref(db, 'users');
+    const snapshot = await get(usersRef);
+    if (!snapshot.exists()) return [];
+
+    const userList: CommunityUserState[] = [];
+    snapshot.forEach((childSnap) => {
+      const uid = childSnap.key || '';
+      const data = childSnap.val() || {};
+      let fullState = null;
+      if (data.fullState) {
+        if (typeof data.fullState === 'string') {
+          try {
+            fullState = JSON.parse(data.fullState);
+          } catch {}
+        } else if (typeof data.fullState === 'object') {
+          fullState = data.fullState;
+        }
+      }
+      userList.push({
+        uid,
+        name: data.name || 'ব্যবহারকারী',
+        fullState,
+        pointsHistory: data.pointsHistory || {},
+        stats: data.stats || {}
+      });
+    });
+    return userList;
+  } catch (err) {
+    console.warn("fetchAllCommunityUsers error:", err);
+    return [];
+  }
+}
+
+/**
+ * Real-time listener for all registered users in Firebase Realtime Database
+ */
+export function subscribeCommunityUsers(
+  callback: (users: CommunityUserState[]) => void
+): () => void {
+  try {
+    const usersRef = ref(db, 'users');
+    const unsubscribe = onValue(
+      usersRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          callback([]);
+          return;
+        }
+        const userList: CommunityUserState[] = [];
+        snapshot.forEach((childSnap) => {
+          const uid = childSnap.key || '';
+          const data = childSnap.val() || {};
+          let fullState = null;
+          if (data.fullState) {
+            if (typeof data.fullState === 'string') {
+              try {
+                fullState = JSON.parse(data.fullState);
+              } catch {}
+            } else if (typeof data.fullState === 'object') {
+              fullState = data.fullState;
+            }
+          }
+          userList.push({
+            uid,
+            name: data.name || 'ব্যবহারকারী',
+            fullState,
+            pointsHistory: data.pointsHistory || {},
+            stats: data.stats || {}
+          });
+        });
+        callback(userList);
+      },
+      (error) => {
+        console.warn("subscribeCommunityUsers error:", error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn("Error setting up users subscription:", err);
+    return () => {};
   }
 }
 

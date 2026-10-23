@@ -29,7 +29,8 @@ import {
   fetchUserRank,
   fetchFirebaseChampion,
   fetchUserAccountLifetimePoints,
-  fetchUserPointsHistory
+  fetchUserPointsHistory,
+  subscribeCommunityUsers
 } from './services/firebase';
 
 export const App: React.FC = () => {
@@ -213,7 +214,15 @@ export const App: React.FC = () => {
       NotificationService.syncAllCordovaReminders(repository.getReminders());
     });
 
-    return () => unsubscribe();
+    const unsubscribeCommunity = subscribeCommunityUsers((users) => {
+      repository.setCommunityUsers(users);
+      refreshAll();
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeCommunity();
+    };
   }, [refreshAll, refreshFirebaseMetrics]);
 
   // Periodic reminder checking interval (every 15s) for in-app and browser notifications

@@ -9,7 +9,8 @@ import {
   TaskStats,
   LeaderboardUser,
   AppStats,
-  ChampionInfo
+  ChampionInfo,
+  CommunityUserState
 } from '../types/ibadat';
 
 export const POINTS = {
@@ -340,6 +341,28 @@ export class IbadatRepository {
   ];
 
   private readonly STORAGE_KEY = 'ibadat_tracker_state_v3';
+  private communityUsers: CommunityUserState[] = [];
+
+  constructor() {
+    try {
+      const cached = localStorage.getItem('cached_community_users');
+      if (cached) {
+        this.communityUsers = JSON.parse(cached);
+      }
+    } catch {}
+  }
+
+  setCommunityUsers(users: CommunityUserState[]): void {
+    if (!Array.isArray(users)) return;
+    this.communityUsers = users;
+    try {
+      localStorage.setItem('cached_community_users', JSON.stringify(users));
+    } catch {}
+  }
+
+  getCommunityUsers(): CommunityUserState[] {
+    return this.communityUsers;
+  }
 
   // Read full appState object matching user schema
   private getAppState(): Record<string, any> {
@@ -742,6 +765,52 @@ export class IbadatRepository {
     return days < 1 ? 1 : days;
   }
 
+  getUserDeedCounts(
+    userFullState: any,
+    category: string,
+    taskKey: string
+  ): { week: number; month: number; lifetime: number } {
+    if (!userFullState || typeof userFullState !== 'object') {
+      return { week: 0, month: 0, lifetime: 0 };
+    }
+
+    const logMap = userFullState[`${category}Log`] || {};
+    let week = 0;
+    let month = 0;
+    let lifetime = 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const iso = this.formatIsoDate(d);
+      const alt = d.toDateString();
+
+      const done = Boolean(logMap[iso]?.[taskKey] || logMap[alt]?.[taskKey]);
+      if (done) {
+        if (i < 7) week++;
+        month++;
+      }
+    }
+
+    if (typeof logMap === 'object') {
+      const todayIso = this.formatIsoDate(today);
+      Object.entries(logMap).forEach(([dateStr, dayLog]: [string, any]) => {
+        if (dayLog && typeof dayLog === 'object' && dayLog[taskKey]) {
+          if (dateStr <= todayIso || dateStr.length > 10) {
+            lifetime++;
+          }
+        }
+      });
+    }
+
+    lifetime = Math.max(lifetime, month);
+
+    return { week, month, lifetime };
+  }
+
   getTaskCompletionStats(category: string, taskKey: string): TaskStats {
     const totalDays = this.getLifetimeDays();
     let weekCount = 0;
@@ -764,13 +833,49 @@ export class IbadatRepository {
       }
     }
 
+    // Determine community participant scores for this specific card
+    const currentUid = this.getCurrentUser()?.id;
+    const otherWeekScores: number[] = [];
+    const otherMonthScores: number[] = [];
+    const otherLifetimeScores: number[] = [];
+
+    this.communityUsers.forEach((u) => {
+      if (currentUid && u.uid === currentUid) return;
+      const counts = this.getUserDeedCounts(u.fullState, category, taskKey);
+      otherWeekScores.push(counts.week);
+      otherMonthScores.push(counts.month);
+      otherLifetimeScores.push(counts.lifetime);
+    });
+
+    // Dense tied rank calculation:
+    // Identical scores get identical rank (e.g. all 7/7 users get #1)
+    // If current user is sole performer, they are #1
+    const calcTiedRank = (myScore: number, otherScores: number[]): number => {
+      if (myScore === 0) {
+        const positiveUniques = Array.from(new Set(otherScores.filter((s) => s > 0))).sort((a, b) => b - a);
+        return Math.max(positiveUniques.length + 1, 10);
+      }
+
+      const all = [myScore, ...otherScores];
+      const uniqueDescending = Array.from(new Set(all)).sort((a, b) => b - a);
+      const idx = uniqueDescending.indexOf(myScore);
+      return idx !== -1 ? idx + 1 : 1;
+    };
+
+    const weekRank = calcTiedRank(weekCount, otherWeekScores);
+    const monthRank = calcTiedRank(monthCount, otherMonthScores);
+    const lifetimeRank = calcTiedRank(lifetimeCount, otherLifetimeScores);
+
     return {
       week: weekCount,
       month: monthCount,
       lifetime: lifetimeCount,
       totalWeekDays: 7,
       totalMonthDays: 30,
-      totalLifetimeDays: totalDays
+      totalLifetimeDays: totalDays,
+      weekRank,
+      monthRank,
+      lifetimeRank
     };
   }
 

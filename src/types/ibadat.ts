@@ -56,6 +56,9 @@ export interface TaskStats {
   totalWeekDays: number;
   totalMonthDays: number;
   totalLifetimeDays: number;
+  weekRank?: number;
+  monthRank?: number;
+  lifetimeRank?: number;
 }
 
 export interface LeaderboardUser {
@@ -80,4 +83,12 @@ export interface AppStats {
 export interface ChampionInfo {
   name: string;
   points: number;
+}
+
+export interface CommunityUserState {
+  uid: string;
+  name: string;
+  fullState?: any;
+  pointsHistory?: Record<string, number>;
+  stats?: Record<string, any>;
 }

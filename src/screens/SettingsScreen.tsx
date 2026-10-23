@@ -6,7 +6,9 @@ import {
   LogIn,
   UserPlus,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw,
+  UserCheck
 } from 'lucide-react';
 import { AppStats, GeneralReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
@@ -44,10 +46,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onLogin,
   onRegister,
   onLogout,
+  onSetUserName,
   onToggleAutoHadith,
   onToggleGeneralReminder,
   onSetGeneralInterval,
   onSetLifetimeStartDate,
+  onRequestReset,
   onOpenLeaderboard,
   getMyRank
 }) => {
@@ -63,6 +67,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   // Settings State
   const [dateInput, setDateInput] = useState(lifetimeStartDate);
+  const [nameInput, setNameInput] = useState(userName);
 
   const intervals = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
   const maxDate = new Date().toISOString().split('T')[0];
@@ -264,9 +269,33 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               )}
             </div>
           </div>
+
+          {/* Local Display Name Setting for Guest Users */}
+          <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100 mb-5">
+            <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center">
+              <UserCheck className="w-4 h-4 mr-2 text-teal-600" />
+              <span>ব্যবহারকারীর নাম (অফলাইন প্রোফাইল)</span>
+            </h3>
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="আপনার নাম লিখুন"
+                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => onSetUserName(nameInput.trim() || 'ব্যবহারকারী')}
+                className="bg-teal-600 text-white px-4 rounded-lg cursor-pointer hover:bg-teal-700 transition font-bold text-sm shrink-0"
+              >
+                সেভ
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
-        /* If User IS Logged In: Show Profile, Stats Grid, AND settings */
+        /* If User IS Logged In: Show Profile, Stats Grid */
         <div>
           <h2 className="text-xl font-bold text-gray-800 mb-4">আমার প্রোফাইল</h2>
 
@@ -300,112 +329,134 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span>লগ আউট করুন</span>
             </button>
           </div>
+        </div>
+      )}
 
-          {/* Automatic Hadith */}
-          <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center mt-4">
+      {/* Shared Settings & Preferences (Available Online & Offline) */}
+      <div className="space-y-4">
+        {/* Automatic Hadith */}
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 flex items-center">
+              <BookHeart className="w-5 h-5 mr-2 text-indigo-600" />
+              <span>অটোমেটিক হাদিস</span>
+            </h3>
+            <p className="text-xs text-gray-500 mt-1">
+              প্রতি ৩০ মিনিট পর পর (অনলাইন/অফলাইন)
+            </p>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoHadithEnabled}
+              onChange={onToggleAutoHadith}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+          </label>
+        </div>
+
+        {/* Tauba & Zikir Reminder */}
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-3">
             <div>
               <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                <BookHeart className="w-5 h-5 mr-2 text-indigo-600" />
-                <span>অটোমেটিক হাদিস</span>
+                <BellRing className="w-5 h-5 mr-2 text-orange-600" />
+                <span>তাওবা ও জিকির রিমাইন্ডার</span>
               </h3>
               <p className="text-xs text-gray-500 mt-1">
-                প্রতি ৩০ মিনিট পর পর (অনলাইন/অফলাইন)
+                নির্দিষ্ট সময় পর পর এলার্ম বাজবে
               </p>
             </div>
 
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={autoHadithEnabled}
-                onChange={onToggleAutoHadith}
+                checked={generalReminder && generalReminder.enabled}
+                onChange={onToggleGeneralReminder}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600" />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600" />
             </label>
           </div>
 
-          {/* Tauba & Zikir Reminder */}
-          <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 mt-4">
-            <div className="flex justify-between items-center mb-3">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                  <BellRing className="w-5 h-5 mr-2 text-orange-600" />
-                  <span>তাওবা ও জিকির রিমাইন্ডার</span>
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  নির্দিষ্ট সময় পর পর এলার্ম বাজবে
-                </p>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={generalReminder && generalReminder.enabled}
-                  onChange={onToggleGeneralReminder}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600" />
-              </label>
-            </div>
-
-            <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <span className="text-sm font-medium text-gray-700">সময় ব্যবধান:</span>
-              <select
-                id="general-interval-select"
-                value={generalReminder.interval}
-                onChange={(e) => onSetGeneralInterval(Number(e.target.value))}
-                className="flex-grow p-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500 bg-white"
-              >
-                {intervals.map((m) => (
-                  <option key={m} value={m}>
-                    {m} মিনিট
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Alarm Issue / Exact Alarm Permission Prompt */}
-          <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-r-xl mt-4">
-            <p className="text-sm font-bold">অ্যালার্ম সমস্যা হচ্ছে?</p>
-            <p className="text-xs mt-0.5 text-yellow-700">
-              সঠিক সময়ে রিমাইন্ডার পেতে নিচের বাটনে ক্লিক করে পারমিশন 'Allow' করুন।
-            </p>
-            <button
-              type="button"
-              onClick={openExactAlarmSettings}
-              className="mt-2.5 bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+          <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <span className="text-sm font-medium text-gray-700">সময় ব্যবধান:</span>
+            <select
+              id="general-interval-select"
+              value={generalReminder.interval}
+              onChange={(e) => onSetGeneralInterval(Number(e.target.value))}
+              className="flex-grow p-2 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500 bg-white"
             >
-              পারমিশন অন করুন
-            </button>
-          </div>
-
-          {/* Point count start date */}
-          <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100 mb-5 mt-4">
-            <h2 className="text-xl font-bold text-gray-800 mb-3 flex items-center">
-              <Clock3 className="w-5 h-5 inline mr-2 text-teal-600" />
-              <span>পয়েন্ট কাউন্ট শুরু</span>
-            </h2>
-            <div className="flex space-x-2">
-              <input
-                type="date"
-                id="lifetime-start-date-input"
-                value={dateInput}
-                max={maxDate}
-                onChange={(e) => setDateInput(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => onSetLifetimeStartDate(dateInput)}
-                className="bg-teal-600 text-white px-4 rounded-lg cursor-pointer hover:bg-teal-700 transition font-bold text-sm shrink-0"
-              >
-                সেট
-              </button>
-            </div>
+              {intervals.map((m) => (
+                <option key={m} value={m}>
+                  {m} মিনিট
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-      )}
+
+        {/* Alarm Issue / Exact Alarm Permission Prompt */}
+        <div className="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-r-xl">
+          <p className="text-sm font-bold">অ্যালার্ম সমস্যা হচ্ছে?</p>
+          <p className="text-xs mt-0.5 text-yellow-700">
+            সঠিক সময়ে রিমাইন্ডার পেতে নিচের বাটনে ক্লিক করে পারমিশন 'Allow' করুন।
+          </p>
+          <button
+            type="button"
+            onClick={openExactAlarmSettings}
+            className="mt-2.5 bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-xs"
+          >
+            পারমিশন অন করুন
+          </button>
+        </div>
+
+        {/* Point count start date */}
+        <div className="bg-white p-5 rounded-xl shadow-md border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-800 mb-3 flex items-center">
+            <Clock3 className="w-5 h-5 inline mr-2 text-teal-600" />
+            <span>পয়েন্ট কাউন্ট শুরু</span>
+          </h2>
+          <div className="flex space-x-2">
+            <input
+              type="date"
+              id="lifetime-start-date-input"
+              value={dateInput}
+              max={maxDate}
+              onChange={(e) => setDateInput(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => onSetLifetimeStartDate(dateInput)}
+              className="bg-teal-600 text-white px-4 rounded-lg cursor-pointer hover:bg-teal-700 transition font-bold text-sm shrink-0"
+            >
+              সেট
+            </button>
+          </div>
+        </div>
+
+        {/* Data Reset Button */}
+        <div className="bg-white p-5 rounded-xl shadow-md border border-red-100 mb-5">
+          <h2 className="text-lg font-bold text-red-600 mb-2 flex items-center">
+            <RotateCcw className="w-5 h-5 mr-2" />
+            <span>ডাটা রিসেট</span>
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">
+            আপনার সমস্ত সংরক্ষিত ইবাদত ট্র্যাকিং ও পয়েন্ট হিস্ট্রি মুছে ফেলতে চাইলে নিচের বাটনে ক্লিক করুন।
+          </p>
+          <button
+            type="button"
+            onClick={onRequestReset}
+            className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>সমস্ত ডাটা মুছে ফেলুন</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
