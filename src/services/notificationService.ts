@@ -1,9 +1,15 @@
 import { ReminderSetting } from '../types/ibadat';
 import { getRandomQuote } from '../data/hadithBank';
+import { repository } from '../data/repository';
+import { auth, getTopUsersByMetric } from './firebase';
 
 // Cordova plugin typing definitions
 declare global {
   interface Window {
+    device?: {
+      platform?: string;
+      version?: string;
+    };
     cordova?: {
       plugins?: {
         notification?: {
@@ -14,6 +20,10 @@ declare global {
             cancel: (id: any | any[], callback?: () => void) => void;
             clear: (id: any | any[], callback?: () => void) => void;
             getAll: (callback: (notifications: any[]) => void) => void;
+            isPresent: (id: number, callback: (present: boolean) => void) => void;
+            update: (options: any) => void;
+            createChannel?: (options: any) => void;
+            setDefaults?: (options: any) => void;
             on?: (event: string, callback: (...args: any[]) => void) => void;
           };
         };
@@ -24,6 +34,9 @@ declare global {
           isActive: () => boolean;
           setDefaults: (options: Record<string, any>) => void;
           overrideBackButton: () => void;
+          excludeFromTaskList?: () => void;
+          disableBatteryOptimizations?: () => void;
+          disableWebViewOptimizations?: () => void;
         };
         permissions?: {
           POST_NOTIFICATIONS?: string;
@@ -145,6 +158,18 @@ export class NotificationService {
             });
           }
         });
+
+        // 3. Create 'night-leaderboard' channel for 6-stage nightly notifications
+        if (local.createChannel) {
+          local.createChannel({
+            id: 'night-leaderboard',
+            name: 'Nightly Leaderboard',
+            importance: 4,
+            visibility: 1,
+            vibration: true,
+            sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
+          });
+        }
       }
 
       const permissions = window.cordova.plugins?.permissions;
@@ -159,8 +184,11 @@ export class NotificationService {
         });
       }
     } catch (e) {
-      console.warn('[Cordova] permission check error:', e);
+      console.warn('[Cordova] permission/channel check error:', e);
     }
+
+    // Schedule dynamic nightly notifications upon Cordova readiness
+    this.scheduleDynamicNightlyNotifications();
   }
 
   /**
@@ -255,6 +283,18 @@ export class NotificationService {
     }
   }
 
+  private static inAppListeners: Array<(title: string, body: string) => void> = [];
+
+  /**
+   * ইন-অ্যাপ নোটিফিকেশন লিসেনার রেজিস্টার করে
+   */
+  static addInAppListener(listener: (title: string, body: string) => void): () => void {
+    this.inAppListeners.push(listener);
+    return () => {
+      this.inAppListeners = this.inAppListeners.filter((l) => l !== listener);
+    };
+  }
+
   /**
    * Send an immediate notification (Web, Cordova, and Audio chime)
    */
@@ -262,7 +302,16 @@ export class NotificationService {
     // 1. Play audio chime
     this.playChime();
 
-    // 2. Try Cordova Local Notification (shows on system tray / heads-up)
+    // 2. Notify all registered in-app listeners
+    this.inAppListeners.forEach((listener) => {
+      try {
+        listener(title, body);
+      } catch (err) {
+        console.warn("InApp listener error:", err);
+      }
+    });
+
+    // 3. Try Cordova Local Notification (shows on system tray / heads-up)
     if (this.isCordovaAvailable()) {
       try {
         window.cordova!.plugins!.notification!.local!.schedule({
@@ -285,17 +334,17 @@ export class NotificationService {
       }
     }
 
-    // 3. Try HTML5 Web Notification
+    // 4. Try HTML5 Web Notification
     if (this.isWebNotificationAvailable() && Notification.permission === 'granted') {
       try {
         new Notification(title, {
           body,
-          icon: './app-icon.jpg',
-          badge: './app-icon.jpg',
-          tag: 'ibadat-reminder'
+          icon: '/app-icon.jpg',
+          badge: '/app-icon.jpg',
+          tag: 'ibadat_instant_' + Date.now()
         });
       } catch (err) {
-        console.warn("Web Notification failed", err);
+        console.warn("HTML5 notification failed", err);
       }
     }
   }
@@ -573,5 +622,454 @@ export class NotificationService {
         onInAppNotification(title, msg);
       }
     }
+
+    // 4. Check Dynamic Nightly Reminders (8:30 PM, 9:00 PM, 9:30 PM, 10:00 PM, 10:30 PM, 11:00 PM)
+    const nightlySchedule = [
+      { hour: 20, minute: 30, index: 1 }, // 8:30 PM (১ম)
+      { hour: 21, minute: 0, index: 2 },  // 9:00 PM (২য়)
+      { hour: 21, minute: 30, index: 3 }, // 9:30 PM (৩য়)
+      { hour: 22, minute: 0, index: 4 },  // 10:00 PM (৪র্থ)
+      { hour: 22, minute: 30, index: 5 }, // 10:30 PM (৫ম)
+      { hour: 23, minute: 0, index: 6 }   // 11:00 PM (৬ষ্ঠ)
+    ];
+
+    const matchedSlot = nightlySchedule.find((s) => s.hour === currentHour && s.minute === currentMin);
+    if (matchedSlot) {
+      const notifIndex = matchedSlot.index;
+      const notifKey = `${todayKey}_nightly_${notifIndex}`;
+      if (!triggeredKeysToday.has(notifKey)) {
+        triggeredKeysToday.add(notifKey);
+        this.getNightlyMessageForIndex(notifIndex).then((msg) => {
+          if (msg) {
+            this.sendNotification(msg.title, msg.body);
+            onInAppNotification(msg.title, msg.body);
+          }
+
+          // সবগুলো নোটিফিকেশনের (১-৬) ঠিক পরপরই যদি কারো পয়েন্ট ০ হয়, তবে সাথে সাথে ২য় নোটিফিকেশন হিসেবে শূন্য পয়েন্ট সতর্কতা দেওয়া হবে
+          const currentPts = repository.calculatePoints(todayKey);
+          if (currentPts === 0) {
+            const zeroKey = `${todayKey}_nightly_zero_${notifIndex}`;
+            if (!triggeredKeysToday.has(zeroKey)) {
+              triggeredKeysToday.add(zeroKey);
+              setTimeout(() => {
+                this.getNightlyMessageForIndex(7).then((zeroMsg) => {
+                  if (zeroMsg) {
+                    this.sendNotification(zeroMsg.title, zeroMsg.body);
+                    onInAppNotification(zeroMsg.title, zeroMsg.body);
+                  }
+                });
+              }, 4000);
+            }
+          }
+        });
+      }
+    }
+  }
+
+  /**
+   * ৬টি নোটিফিকেশন + শূন্য (০) পয়েন্ট সতর্কতা নোটিফিকেশন শিডিউলার
+   * দৈনিক রাত ৮:৩০, ৯:০০, ৯:৩০, ১০:০০, ১০:৩০, ১১:০০ এবং শূন্য পয়েন্ট থাকলে ঠিক পরপরই সতর্কতা নোটিফিকেশন সেট ও আপডেট করে
+   */
+  static async scheduleDynamicNightlyNotifications(): Promise<void> {
+    try {
+      const todayKey = repository.getTodayKey();
+      const myRealTimePoints = repository.calculatePoints(todayKey);
+      const myPointsToday = myRealTimePoints;
+      const stats = repository.getAppStats(todayKey);
+      const myPointsYesterday = stats.yesterdayPoints || 0;
+      const score7Days = stats.totalPoints7Days || 0;
+      const score30Days = stats.totalPoints30Days || 0;
+      const highScore30 = stats.highScore30Days || 0;
+
+      let myIndexToday = -1;
+      let myRankToday = 1;
+      let myRankYesterday = '#১';
+      let topName = 'সেরা আমলকারী';
+      let topPoints = 0;
+
+      try {
+        const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+        const todayUsers = await getTopUsersByMetric('todayPoints', 0);
+        const yesterdayUsers = await getTopUsersByMetric('yesterdayPoints', 0);
+
+        if (todayUsers && todayUsers.length > 0) {
+          topName = todayUsers[0].name || 'সেরা আমলকারী';
+          topPoints = todayUsers[0].points || 0;
+        }
+
+        if (currentUid && todayUsers && todayUsers.length > 0) {
+          myIndexToday = todayUsers.findIndex((u) => u.id === currentUid);
+          if (myIndexToday !== -1) {
+            myRankToday = todayUsers[myIndexToday].rank;
+          } else {
+            myRankToday = todayUsers.length + 1;
+          }
+        }
+
+        if (currentUid && yesterdayUsers && yesterdayUsers.length > 0) {
+          const yIdx = yesterdayUsers.findIndex((u) => u.id === currentUid);
+          if (yIdx !== -1) {
+            myRankYesterday = `#${yesterdayUsers[yIdx].rank}`;
+          } else {
+            myRankYesterday = `#${yesterdayUsers.length + 1}`;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load cloud leaderboard for nightly notifications:', err);
+      }
+
+      // Offline / Local Fallback
+      if (myIndexToday === -1) {
+        const localToday = repository.getLeaderboard('todayPoints');
+        const myUserToday = localToday.find((u) => u.isCurrentUser);
+        if (myUserToday) {
+          myRankToday = myUserToday.rank;
+          myIndexToday = localToday.indexOf(myUserToday);
+        } else {
+          myIndexToday = myPointsToday > 0 ? 0 : -1;
+          myRankToday = 1;
+        }
+
+        const localYesterday = repository.getLeaderboard('yesterdayPoints');
+        const myUserYest = localYesterday.find((u) => u.isCurrentUser);
+        myRankYesterday = `#${myUserYest?.rank || 1}`;
+
+        if (localToday.length > 0) {
+          topName = localToday[0].name;
+          topPoints = localToday[0].points;
+        }
+      }
+
+      const pointsNeeded = Math.max(1, (topPoints - myPointsToday) + 1);
+
+      // ৪. ৬টি নোটিফিকেশনের সময় এবং ইনডেক্স (৮:৩০ PM, ৯:০০ PM, ৯:৩০ PM, ১০:০০ PM, ১০:৩০ PM, ১১:০০ PM)
+      const reminders = [
+        { id: 70001, hour: 20, minute: 30, index: 1 }, // ১ম নোটিফিকেশন (8:30 PM)
+        { id: 70002, hour: 21, minute: 0, index: 2 },  // ২য় নোটিফিকেশন (9:00 PM)
+        { id: 70003, hour: 21, minute: 30, index: 3 }, // ৩য় নোটিফিকেশন (9:30 PM)
+        { id: 70004, hour: 22, minute: 0, index: 4 },  // ৪র্থ নোটিফিকেশন (10:00 PM)
+        { id: 70005, hour: 22, minute: 30, index: 5 }, // ৫ম নোটিফিকেশন (10:30 PM)
+        { id: 70006, hour: 23, minute: 0, index: 6 }   // ৬ষ্ঠ নোটিফিকেশন (11:00 PM)
+      ];
+
+      // ৫. লুপ চালিয়ে প্রতিটি নোটিফিকেশনের জন্য আলাদা মেসেজ সেট করা
+      reminders.forEach((r) => {
+        let title = '';
+        let body = '';
+
+        // --- ১. ১ম নোটিফিকেশন ---
+        if (r.index === 1) {
+          if (myIndexToday === 0) {
+            title = `🏆মাশাআল্লাহ! আপনিই গতকালকের সেরা! 👑${myRankYesterday}`;
+            body = `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`;
+          } else {
+            title = `গতকাল লিডারবোর্ডে আপনি ছিলেন ${myRankYesterday}`;
+            body = `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`;
+          }
+        }
+
+        // --- ২. ২য় নোটিফিকেশন ---
+        else if (r.index === 2) {
+          if (myIndexToday === 0) {
+            title = `🏆মাশাআল্লাহ! আপনিই গতকালকের সেরা! 👑${myRankYesterday}`;
+            body = `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`;
+          } else {
+            title = `গতকাল লিডারবোর্ডে আপনি ছিলেন ${myRankYesterday}`;
+            body = `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`;
+          }
+        }
+
+        // --- ৩. ৩য় নোটিফিকেশন ---
+        else if (r.index === 3) {
+          if (myIndexToday === 0) {
+            title = `🏆 মাশাআল্লাহ! আপনিই আজকের সেরা!`;
+            body = `আজকের পয়েন্ট:👑 ${myPointsToday}। গতকাল ছিল: ${myPointsYesterday}। আরও বেশি আমল করে আখিরাতে নিজের মর্যাদা বৃদ্ধি করুন!`;
+          } else {
+            title = `🎉 প্রথম স্থানে আছেন ${topName} (${topPoints})`;
+            body = `আজকে আপনার র্যাঙ্ক #${myRankToday}। প্রথম স্থানে যেতে প্রয়োজন আর ${pointsNeeded} পয়েন্ট। নিজের আমল বৃদ্ধি করে ১ নম্বরে উঠে আসুন এবং আখিরাত সুন্দর করুন।`;
+          }
+        }
+
+        // --- ৪. ৪র্থ নোটিফিকেশন ---
+        else if (r.index === 4) {
+          if (myIndexToday === 0) {
+            title = `🏆 মাশাআল্লাহ! আপনিই আজকের সেরা!`;
+            body = `আজকের পয়েন্ট: 👑${myPointsToday}। গতকাল ছিল: ${myPointsYesterday}। আরও বেশি আমল করে আখিরাতে নিজের মর্যাদা বৃদ্ধি করুন!`;
+          } else {
+            title = `🎉 প্রথম স্থানে আছেন ${topName} (${topPoints})`;
+            body = `আজকে আপনার র্যাঙ্ক #${myRankToday}। প্রথম স্থানে যেতে প্রয়োজন আর ${pointsNeeded} পয়েন্ট। নিজের আমল বৃদ্ধি করে ১ নম্বরে উঠে আসুন এবং আখিরাত সুন্দর করুন।`;
+          }
+        }
+
+        // --- ৫. ৫ম নোটিফিকেশন ---
+        else if (r.index === 5) {
+          if (myIndexToday === 0) {
+            title = `🏆 মাশাআল্লাহ! আপনিই আজকের সেরা!`;
+            body = `আজকের পয়েন্ট:👑 ${myPointsToday}। গতকাল ছিল: ${myPointsYesterday}। আরও বেশি আমল করে আখিরাতে নিজের মর্যাদা বৃদ্ধি করুন!`;
+          } else {
+            title = `🎉 প্রথম স্থানে আছেন ${topName} (${topPoints})`;
+            body = `আজকে আপনার র্যাঙ্ক #${myRankToday}। প্রথম স্থানে যেতে প্রয়োজন আর ${pointsNeeded} পয়েন্ট। নিজের আমল বৃদ্ধি করে ১ নম্বরে উঠে আসুন এবং আখিরাত সুন্দর করুন।`;
+          }
+        }
+
+        // --- ৬. ৬ষ্ঠ নোটিফিকেশন (শেষ) ---
+        else if (r.index === 6) {
+          if (myIndexToday === 0) {
+            title = `👑 আজকের ইবাদতে আপনি শীর্ষে! মাশাআল্লাহ, অনেক ভালো!`;
+            body = `আপনার পয়েন্ট: ${myRealTimePoints}। এতো ভালো পারফরম্যান্সের পর, ওযু করে সকল দু'আ পড়ে তাহাজ্জুদের নিয়ত করে ঘুমোচ্ছেন তো? আল্লাহ কবুল করুন! শুভ রাত্রি।`;
+          } else {
+            title = `😴 রাতের শেষ ঘণ্টা! আপনার আজকের অর্জন #${myRankToday}`;
+            body = `আপনার আজকের ফল: ${myRealTimePoints}। আপনি যথেষ্ট চেষ্টা করেছেন, আলহামদুলিল্লাহ! এখন ওযু করে সকল দু'আ পড়ে তাহাজ্জুদের নিয়ত করে ঘুমোচ্ছেন তো? শুভ রাত্রি।`;
+          }
+        }
+
+        // ৬. শিডিউল বা আপডেট লজিক
+        if (typeof window !== 'undefined' && window.cordova?.plugins?.notification?.local) {
+          const local = window.cordova.plugins.notification.local;
+          local.isPresent(r.id, (present: boolean) => {
+            if (present) {
+              // আপডেট (সাইলেন্ট)
+              local.update({
+                id: r.id,
+                title: title,
+                text: body
+              });
+              console.log(`Updated notification ${r.id} with points: ${myRealTimePoints}`);
+            } else {
+              // নতুন শিডিউল
+              local.schedule({
+                id: r.id,
+                title: title,
+                text: body,
+                trigger: { every: { hour: r.hour, minute: r.minute } },
+                foreground: true,
+                priority: 2,
+                wakeup: true,
+                channel: 'night-leaderboard',
+                sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
+              });
+              console.log(`Scheduled notification ${r.id}`);
+            }
+          });
+
+          // যদি ওই দিনে ব্যবহারকারীর পয়েন্ট ০ থাকে, তবে সবগুলো নোটিফিকেশনের (১-৬) ঠিক পরপরই (৬ সেকেন্ড পর) ২য় নোটিফিকেশন হিসেবে শূন্য পয়েন্ট সতর্কতা আসবে
+          const zeroFollowUpId = r.id + 100; // 70101, 70102, 70103, 70104, 70105, 70106
+          const zeroPointTitle = "⚠️ আজকের কোনো ইবাদত পয়েন্ট নেই!";
+          const zeroPointBody = "আজকে আপনার কোনো ইবাদত পয়েন্ট নেই বা আপনি ইবাদতে অমনোযোগী হয়ে গেছেন। আপনার ইবাদত ঠিক রাখার জন্য এবং উন্নতি করার জন্য নিয়মিত ইবাদত ট্র্যাকিং ও হিসাব রাখুন, ইনশাআল্লাহ উন্নতি আসবে। এবং আল্লাহর কাছে হেদায়েতের জন্য দু'আ করুন।";
+
+          if (myRealTimePoints === 0) {
+            const zeroTriggerDate = new Date();
+            zeroTriggerDate.setHours(r.hour, r.minute, 6, 0); // সংশ্লিষ্ট নোটিফিকেশনটির ঠিক ৬ সেকেন্ড পর
+            if (zeroTriggerDate.getTime() <= Date.now()) {
+              zeroTriggerDate.setDate(zeroTriggerDate.getDate() + 1);
+            }
+
+            local.isPresent(zeroFollowUpId, (present: boolean) => {
+              if (present) {
+                local.update({
+                  id: zeroFollowUpId,
+                  title: zeroPointTitle,
+                  text: zeroPointBody
+                });
+              } else {
+                local.schedule({
+                  id: zeroFollowUpId,
+                  title: zeroPointTitle,
+                  text: zeroPointBody,
+                  trigger: {
+                    at: zeroTriggerDate,
+                    every: 'day'
+                  },
+                  foreground: true,
+                  priority: 2,
+                  wakeup: true,
+                  channel: 'night-leaderboard',
+                  sound: window.device?.platform === 'Android' ? 'res://raw/reminder_sound3' : undefined
+                });
+                console.log(`Scheduled zero-point follow-up notification ${zeroFollowUpId} after notification ${r.index}`);
+              }
+            });
+          } else {
+            // ইউজারের পয়েন্ট থাকলে শূন্য পয়েন্টের অ্যালার্ম বাতিল করা হবে
+            local.cancel(zeroFollowUpId);
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error setting custom notifications:", error);
+    }
+  }
+
+  /**
+   * নির্দিষ্ট ইনডেক্সের (১-৬ অথবা শূন্য পয়েন্টের ৭) নোটিফিকেশন মেসেজ তৈরি করে
+   */
+  static async getNightlyMessageForIndex(index: number): Promise<{ title: string; body: string } | null> {
+    try {
+      const todayKey = repository.getTodayKey();
+      const myRealTimePoints = repository.calculatePoints(todayKey);
+      const myPointsToday = myRealTimePoints;
+      const stats = repository.getAppStats(todayKey);
+      const myPointsYesterday = stats.yesterdayPoints || 0;
+      const score7Days = stats.totalPoints7Days || 0;
+      const score30Days = stats.totalPoints30Days || 0;
+      const highScore30 = stats.highScore30Days || 0;
+
+      let myIndexToday = -1;
+      let myRankToday = 1;
+      let myRankYesterday = '#১';
+      let topName = 'সেরা আমলকারী';
+      let topPoints = 0;
+
+      try {
+        const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+        const todayUsers = await getTopUsersByMetric('todayPoints', 0);
+        const yesterdayUsers = await getTopUsersByMetric('yesterdayPoints', 0);
+
+        if (todayUsers && todayUsers.length > 0) {
+          topName = todayUsers[0].name || 'সেরা আমলকারী';
+          topPoints = todayUsers[0].points || 0;
+        }
+
+        if (currentUid && todayUsers && todayUsers.length > 0) {
+          myIndexToday = todayUsers.findIndex((u) => u.id === currentUid);
+          if (myIndexToday !== -1) {
+            myRankToday = todayUsers[myIndexToday].rank;
+          } else {
+            myRankToday = todayUsers.length + 1;
+          }
+        }
+
+        if (currentUid && yesterdayUsers && yesterdayUsers.length > 0) {
+          const yIdx = yesterdayUsers.findIndex((u) => u.id === currentUid);
+          if (yIdx !== -1) {
+            myRankYesterday = `#${yesterdayUsers[yIdx].rank}`;
+          } else {
+            myRankYesterday = `#${yesterdayUsers.length + 1}`;
+          }
+        }
+      } catch {}
+
+      if (myIndexToday === -1) {
+        const localToday = repository.getLeaderboard('todayPoints');
+        const myUserToday = localToday.find((u) => u.isCurrentUser);
+        if (myUserToday) {
+          myRankToday = myUserToday.rank;
+          myIndexToday = localToday.indexOf(myUserToday);
+        } else {
+          myIndexToday = myPointsToday > 0 ? 0 : -1;
+          myRankToday = 1;
+        }
+
+        const localYesterday = repository.getLeaderboard('yesterdayPoints');
+        const myUserYest = localYesterday.find((u) => u.isCurrentUser);
+        myRankYesterday = `#${myUserYest?.rank || 1}`;
+
+        if (localToday.length > 0) {
+          topName = localToday[0].name;
+          topPoints = localToday[0].points;
+        }
+      }
+
+      const pointsNeeded = Math.max(1, (topPoints - myPointsToday) + 1);
+
+      if (index === 1 || index === 2) {
+        if (myIndexToday === 0) {
+          return {
+            title: `🏆মাশাআল্লাহ! আপনিই গতকালকের সেরা! 👑${myRankYesterday}`,
+            body: `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`
+          };
+        } else {
+          return {
+            title: `গতকাল লিডারবোর্ডে আপনি ছিলেন ${myRankYesterday}`,
+            body: `গত ৭ দিন: ${score7Days} | ৩০ দিন: ${score30Days} |৩০ দিনের হাইস্কোর: ${highScore30}। নিজের ইবাদতের উন্নতি করে আখিরাত সুন্দর করুন।`
+          };
+        }
+      }
+
+      if (index >= 3 && index <= 5) {
+        if (myIndexToday === 0) {
+          return {
+            title: `🏆 মাশাআল্লাহ! আপনিই আজকের সেরা!`,
+            body: `আজকের পয়েন্ট:👑 ${myPointsToday}। গতকাল ছিল: ${myPointsYesterday}। আরও বেশি আমল করে আখিরাতে নিজের মর্যাদা বৃদ্ধি করুন!`
+          };
+        } else {
+          return {
+            title: `🎉 প্রথম স্থানে আছেন ${topName} (${topPoints})`,
+            body: `আজকে আপনার র্যাঙ্ক #${myRankToday}। প্রথম স্থানে যেতে প্রয়োজন আর ${pointsNeeded} পয়েন্ট। নিজের আমল বৃদ্ধি করে ১ নম্বরে উঠে আসুন এবং আখিরাত সুন্দর করুন।`
+          };
+        }
+      }
+
+      if (index === 6) {
+        if (myIndexToday === 0) {
+          return {
+            title: `👑 আজকের ইবাদতে আপনি শীর্ষে! মাশাআল্লাহ, অনেক ভালো!`,
+            body: `আপনার পয়েন্ট: ${myRealTimePoints}। এতো ভালো পারফরম্যান্সের পর, ওযু করে সকল দু'আ পড়ে তাহাজ্জুদের নিয়ত করে ঘুমোচ্ছেন তো? আল্লাহ কবুল করুন! শুভ রাত্রি।`
+          };
+        } else {
+          return {
+            title: `😴 রাতের শেষ ঘণ্টা! আপনার আজকের অর্জন #${myRankToday}`,
+            body: `আপনার আজকের ফল: ${myRealTimePoints}। আপনি যথেষ্ট চেষ্টা করেছেন, আলহামদুলিল্লাহ! এখন ওযু করে সকল দু'আ পড়ে তাহাজ্জুদের নিয়ত করে ঘুমোচ্ছেন তো? শুভ রাত্রি।`
+          };
+        }
+      }
+
+      if (index === 7) {
+        return {
+          title: "⚠️ আজকের কোনো ইবাদত পয়েন্ট নেই!",
+          body: "আজকে আপনার কোনো ইবাদত পয়েন্ট নেই বা আপনি ইবাদতে অমনোযোগী হয়ে গেছেন। আপনার ইবাদত ঠিক রাখার জন্য এবং উন্নতি করার জন্য নিয়মিত ইবাদত ট্র্যাকিং ও হিসাব রাখুন, ইনশাআল্লাহ উন্নতি আসবে। এবং আল্লাহর কাছে হেদায়েতের জন্য দু'আ করুন।"
+        };
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * টেস্ট করার জন্য নোটিফিকেশন তাৎক্ষণিক ট্রিগার করে (ওয়েব এবং কর্ডোভা উভয়তেই সাউন্ডসহ বাজবে)
+   * যদি ইউজারের আজকের পয়েন্ট ০ থাকে অথবা forceZero সত্য হয়, তবে ১-৬ প্রতিটি নোটিফিকেশনের ঠিক পরপরই ২য় নোটিফিকেশন হিসেবে শূন্য পয়েন্ট সতর্কতা আসবে
+   */
+  static async triggerTestNightly(
+    index: number,
+    onFollowUp?: (title: string, body: string) => void,
+    forceZero: boolean = false
+  ): Promise<{ title: string; body: string; hasFollowUpZero?: boolean } | null> {
+    const msg = await this.getNightlyMessageForIndex(index);
+    const todayPts = repository.calculatePoints(repository.getTodayKey());
+    const isZero = forceZero || todayPts === 0;
+
+    if (!msg) {
+      if (index === 7) {
+        // টেস্ট করার জন্য শূন্য পয়েন্ট বার্তা প্রদর্শন
+        const testZero = {
+          title: "⚠️ আজকের কোনো ইবাদত পয়েন্ট নেই!",
+          body: "আজকে আপনার কোনো ইবাদত পয়েন্ট নেই বা আপনি ইবাদতে অমনোযোগী হয়ে গেছেন। আপনার ইবাদত ঠিক রাখার জন্য এবং উন্নতি করার জন্য নিয়মিত ইবাদত ট্র্যাকিং ও হিসাব রাখুন, ইনশাআল্লাহ উন্নতি আসবে। এবং আল্লাহর কাছে হেদায়েতের জন্য দু'আ করুন।"
+        };
+        this.sendNotification(testZero.title, testZero.body);
+        return { ...testZero, hasFollowUpZero: false };
+      }
+      return null;
+    }
+
+    this.sendNotification(msg.title, msg.body);
+
+    // সবগুলো নোটিফিকেশনের (১-৬) যেকোনোটি টেস্ট করার সময় যদি ইউজারের পয়েন্ট ০ থাকে (অথবা forceZero থাকে),
+    // তবে ২.৫ সেকেন্ড পরই ফলো-আপ হিসেবে ২য় নোটিফিকেশন (শূন্য পয়েন্ট সতর্কবার্তা) বাজবে ও প্রদর্শিত হবে
+    if (index >= 1 && index <= 6 && isZero) {
+      setTimeout(() => {
+        const zeroMsg = {
+          title: "⚠️ আজকের কোনো ইবাদত পয়েন্ট নেই!",
+          body: "আজকে আপনার কোনো ইবাদত পয়েন্ট নেই বা আপনি ইবাদতে অমনোযোগী হয়ে গেছেন। আপনার ইবাদত ঠিক রাখার জন্য এবং উন্নতি করার জন্য নিয়মিত ইবাদত ট্র্যাকিং ও হিসাব রাখুন, ইনশাআল্লাহ উন্নতি আসবে। এবং আল্লাহর কাছে হেদায়েতের জন্য দু'আ করুন।"
+        };
+        this.sendNotification(zeroMsg.title, zeroMsg.body);
+        if (onFollowUp) {
+          onFollowUp(zeroMsg.title, zeroMsg.body);
+        }
+      }, 2500);
+    }
+
+    return { ...msg, hasFollowUpZero: index >= 1 && index <= 6 && isZero };
   }
 }

@@ -101,6 +101,9 @@ export const App: React.FC = () => {
     const stats = repository.getAppStats(dateKey);
     setAppStats(stats);
 
+    // Dynamic Nightly Notifications update
+    NotificationService.scheduleDynamicNightlyNotifications();
+
     if (!auth.currentUser) return;
     try {
       await syncStateToFirebase(dateKey, points, stats, repository.getFullState());
@@ -239,10 +242,15 @@ export const App: React.FC = () => {
       refreshAll();
     });
 
+    const unsubscribeInApp = NotificationService.addInAppListener((title, body) => {
+      showAlert(`${title}\n\n${body}`, !title.includes('⚠️'));
+    });
+
     return () => {
       unsubscribe();
       unsubscribeCommunity();
       unsubscribePush();
+      unsubscribeInApp();
     };
   }, [refreshAll, refreshFirebaseMetrics, showAlert]);
 
@@ -261,6 +269,16 @@ export const App: React.FC = () => {
 
     return () => clearInterval(timer);
   }, [reminders, autoHadithEnabled, generalReminder, showAlert]);
+
+  // Periodic dynamic leaderboard notification updater (every 10 minutes)
+  useEffect(() => {
+    NotificationService.scheduleDynamicNightlyNotifications();
+    const interval10m = setInterval(() => {
+      NotificationService.scheduleDynamicNightlyNotifications();
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval10m);
+  }, []);
 
   const isViewingToday = currentViewingDate === repository.getTodayKey();
 

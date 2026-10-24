@@ -8,11 +8,15 @@ import {
   LogOut,
   AlertTriangle,
   RotateCcw,
-  UserCheck
+  UserCheck,
+  Trophy,
+  AlertCircle,
+  Play
 } from 'lucide-react';
 import { AppStats, GeneralReminderSetting } from '../types/ibadat';
 import { StatsGrid } from '../components/StatsGrid';
 import { User } from '../services/firebase';
+import { NotificationService } from '../services/notificationService';
 
 interface SettingsScreenProps {
   currentUser: User | null;
@@ -70,6 +74,51 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Settings State
   const [dateInput, setDateInput] = useState(lifetimeStartDate);
   const [nameInput, setNameInput] = useState(userName);
+  const [testingIndex, setTestingIndex] = useState<number | null>(null);
+
+  const handleTestNightly = async (index: number, forceSimulateZero: boolean = false) => {
+    setTestingIndex(index);
+    try {
+      const todayPts = appStats.todayPoints || 0;
+      const isZero = forceSimulateZero || todayPts === 0;
+
+      const res = await NotificationService.triggerTestNightly(
+        index,
+        (zeroTitle, zeroBody) => {
+          onShowAlert(
+            `🔔 ২য় সতর্কতা নোটিফিকেশন (শূন্য পয়েন্ট):\n\n${zeroTitle}\n\n${zeroBody}`,
+            false
+          );
+        },
+        forceSimulateZero
+      );
+
+      if (res) {
+        if (index >= 1 && index <= 6 && (isZero || res.hasFollowUpZero)) {
+          onShowAlert(
+            `🔔 ১ম নোটিফিকেশন পাঠানো হয়েছে:\n\n${res.title}\n\n${res.body}\n\n⚠️ আজকের পয়েন্ট ০ থাকায় ২.৫ সেকেন্ড পরেই ২য় সতর্কতা নোটিফিকেশন স্ক্রিনে আসবে এবং সাউন্ড বাজবে...`,
+            true
+          );
+        } else if (index === 7) {
+          onShowAlert(
+            `🔔 ২য় সতর্কতা নোটিফিকেশন (শূন্য পয়েন্ট):\n\n${res.title}\n\n${res.body}`,
+            false
+          );
+        } else {
+          onShowAlert(
+            `🔔 টেস্ট নোটিফিকেশন পাঠানো হয়েছে:\n\n${res.title}\n\n${res.body}\n\n(বর্তমানে পয়েন্ট ${todayPts} থাকায় ২য় শূন্য-পয়েন্ট সতর্কতা নিষ্ক্রিয়। শূন্য পয়েন্ট সতর্কতা দেখতে "০ পয়েন্ট টেস্ট" বাটনে ক্লিক করুন)`,
+            true
+          );
+        }
+      } else {
+        onShowAlert('এই নোটিফিকেশনটির মেসেজ তৈরি করা যায়নি।', false);
+      }
+    } catch {
+      onShowAlert('নোটিফিকেশন পাঠানো ব্যর্থ হয়েছে।', false);
+    } finally {
+      setTestingIndex(null);
+    }
+  };
 
   const intervals = [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
   const maxDate = new Date().toISOString().split('T')[0];
@@ -416,6 +465,125 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             পারমিশন অন করুন
           </button>
+        </div>
+
+        {/* Nightly Leaderboard & Custom Notification Reminders (6 Slots + Zero Point Warning) - Hidden from UI */}
+        <div className="hidden" style={{ display: 'none' }} aria-hidden="true">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-base font-bold text-gray-800 flex items-center">
+              <Trophy className="w-5 h-5 mr-2 text-amber-500" />
+              <span>লিডারবোর্ড ও রাতের রিমাইন্ডার</span>
+            </h3>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+              ৬টি সময়সূচী + সতর্কতা
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-600 mb-3 leading-relaxed">
+            প্রতিদিন রাত ৮:৩০ থেকে ১১:০০ এর মধ্যে আপনার পয়েন্ট ও লিডারবোর্ডের র্যাঙ্ক অনুযায়ী স্বয়ংক্রিয়ভাবে নোটিফিকেশন পাঠানো হয়। এবং ওই দিনে কোনো ইবাদত পয়েন্ট না থাকলে (০ পয়েন্ট হলে) সবগুলো নোটিফিকেশনের ঠিক পরপরই দ্বিতীয় নোটিফিকেশন হিসেবে বিশেষ সতর্কবার্তা ও হেদায়েতের দু'আ পাঠানো হয়।
+          </p>
+
+          {/* Today's Points & Zero Warning Status Banner */}
+          <div className="mb-3 p-3 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 border-slate-200">
+            <div className="text-xs">
+              <span className="font-semibold text-gray-700">আজকের অর্জিত পয়েন্ট: </span>
+              <span className="font-bold text-teal-700 text-sm">{appStats.todayPoints} পয়েন্ট</span>
+            </div>
+            {appStats.todayPoints === 0 ? (
+              <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300 flex items-center gap-1.5 w-fit">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>পয়েন্ট ০: প্রতিটি নোটিফিকেশনের পর ২য় সতর্কতা সক্রিয়</span>
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 flex items-center gap-1.5 w-fit">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>পয়েন্ট বিদ্যমান (সতর্কতা নিষ্ক্রিয়)</span>
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2 mb-3">
+            {[
+              { id: 70001, hour: 20, min: 30, index: 1, name: "১ম নোটিফিকেশন (৮:৩০ PM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও ৭/৩০ দিনের স্কোর" },
+              { id: 70002, hour: 21, min: 0, index: 2, name: "২য় নোটিফিকেশন (৯:০০ PM)", desc: "গতকালকের সেরা / গতকালের অবস্থান ও আখিরাতের উন্নতি" },
+              { id: 70003, hour: 21, min: 30, index: 3, name: "৩য় নোটিফিকেশন (৯:৩০ PM)", desc: "আজকের সেরা / ১ম স্থানে যাওয়ার প্রয়োজনীয় পয়েন্ট" },
+              { id: 70004, hour: 22, min: 0, index: 4, name: "৪র্থ নোটিফিকেশন (১০:০০ PM)", desc: "আজকের পয়েন্ট ও গতকালকের তুলনায় অগ্রগতি" },
+              { id: 70005, hour: 22, min: 30, index: 5, name: "৫ম নোটিফিকেশন (১০:৩০ PM)", desc: "আজকের সেরা / ১ম নম্বরে উঠে আসার অনুপ্রেরণা" },
+              { id: 70006, hour: 23, min: 0, index: 6, name: "৬ষ্ঠ নোটিফিকেশন (১১:০০ PM)", desc: "আজকের অর্জন, ওযু করে তাহাজ্জুদের নিয়ত ও শুভ রাত্রি" },
+              { id: 70007, hour: 23, min: 0, index: 7, name: "শূন্য (০) পয়েন্ট সতর্কতা (সবগুলোর পরপরই)", desc: "পয়েন্ট ০ থাকলে ১ থেকে ৬ সবগুলো নোটিফিকেশনের ঠিক পরপরই ২য় নোটিফিকেশন হিসেবে এই সতর্কবার্তা আসে", isAlert: true }
+            ].map((slot) => (
+              <div
+                key={slot.id}
+                className={`flex items-center justify-between p-2.5 rounded-lg border text-xs ${
+                  slot.isAlert ? 'bg-amber-50/70 border-amber-200' : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="flex-1 mr-2">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800">
+                    {slot.isAlert ? (
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    ) : (
+                      <Clock3 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    )}
+                    <span>{slot.name}</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">{slot.desc}</div>
+                </div>
+
+                {slot.isAlert ? (
+                  <button
+                    type="button"
+                    disabled={testingIndex === slot.index}
+                    onClick={() => handleTestNightly(slot.index, true)}
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-bold transition cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                    title="সরাসরি শূন্য পয়েন্ট সতর্কতা নোটিফিকেশন টেস্ট পাঠান"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>{testingIndex === slot.index ? 'পাঠানো হচ্ছে...' : 'টেস্ট'}</span>
+                  </button>
+                ) : appStats.todayPoints === 0 ? (
+                  <button
+                    type="button"
+                    disabled={testingIndex === slot.index}
+                    onClick={() => handleTestNightly(slot.index, false)}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[11px] font-bold transition cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                    title="টেস্ট নোটিফিকেশন পাঠান (১ম নোটিফিকেশন + শূন্য পয়েন্ট সতর্কতা)"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>{testingIndex === slot.index ? 'পাঠানো হচ্ছে...' : 'টেস্ট (২টি নোটিফিকেশন)'}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={testingIndex === slot.index}
+                      onClick={() => handleTestNightly(slot.index, false)}
+                      className="px-2 py-1 bg-white hover:bg-teal-50 text-teal-700 border border-teal-200 rounded-md text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                      title="সাধারণ টেস্ট পাঠান"
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>{testingIndex === slot.index ? '...' : 'টেস্ট'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={testingIndex === slot.index}
+                      onClick={() => handleTestNightly(slot.index, true)}
+                      className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-50"
+                      title="০ পয়েন্ট ধরে ২য় সতর্কতা সহ টেস্ট করুন"
+                    >
+                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                      <span>০ পয়েন্ট টেস্ট</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="text-[11px] text-teal-700 bg-teal-50 p-2.5 rounded-lg border border-teal-100 flex items-start gap-1.5">
+            <span className="font-bold">💡 তথ্য:</span>
+            <span>কারো পয়েন্ট ০ থাকলে সবগুলো নোটিফিকেশনের ঠিক পরপরই ২য় নোটিফিকেশন হিসেবে এই সতর্কবার্তা পাঠানো হয়। যেকোনো ১টি আমলও লিপিবদ্ধ করার সাথে সাথে (পয়েন্ট ১ বা তার বেশি হলে) এই সতর্কতা স্বয়ংক্রিয়ভাবে বন্ধ হয়ে যায়।</span>
+          </div>
         </div>
 
         {/* Point count start date */}
